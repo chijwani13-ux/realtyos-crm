@@ -16,6 +16,24 @@ const STAGES = [
 const EVENT_TYPES = ["Call", "Meeting", "Site Visit", "Builder Meeting"] as const;
 const DOC_TYPES = ["Brochure", "Price Sheet", "Floor Plan", "Legal Document", "RERA PDF"] as const;
 const CONTACT_TYPES = ["Buyer", "Builder", "Vendor", "Seller", "Broker"] as const;
+const LEAD_STATUSES = [
+  "Open",
+  "On Hold",
+  "Qualified",
+  "Won",
+  "Disqualified",
+  "Rejected",
+  "Lost",
+] as const;
+const LEAD_STATUS_COLORS: Record<string, string> = {
+  Open: "#3b82f6",
+  "On Hold": "#f59e0b",
+  Qualified: "#8b5cf6",
+  Won: "#22c55e",
+  Disqualified: "#ef4444",
+  Rejected: "#ef4444",
+  Lost: "#6b7280",
+};
 const INTERACTION_TYPES = [
   "Call",
   "WhatsApp",
@@ -45,6 +63,7 @@ type Lead = {
   phone: string;
   interest: string | null;
   stage: string;
+  status: string;
   source: string | null;
   notes: string | null;
   contactId: string | null;
@@ -979,8 +998,8 @@ function LeadsTab({
   function exportCsv() {
     downloadCsv(
       `realtyos-leads-${todayStr()}.csv`,
-      ["Name", "Phone", "Stage", "Source", "Interest", "Created"],
-      leads.map((l) => [l.name, l.phone, l.stage, l.source || "", l.interest || "", fmt(l.createdAt)])
+      ["Name", "Phone", "Stage", "Status", "Source", "Interest", "Created"],
+      leads.map((l) => [l.name, l.phone, l.stage, l.status, l.source || "", l.interest || "", fmt(l.createdAt)])
     );
   }
   return (
@@ -1019,6 +1038,15 @@ function LeadsTab({
                 </div>
               </div>
               <span className="pill pill-stage">{l.stage}</span>
+              <span
+                className="pill"
+                style={{
+                  background: `${LEAD_STATUS_COLORS[l.status] || "#6b7280"}22`,
+                  color: LEAD_STATUS_COLORS[l.status] || "#6b7280",
+                }}
+              >
+                {l.status}
+              </span>
               <div className="row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => onEdit(l)}>
                   Edit
@@ -1858,6 +1886,7 @@ function EntityModal({
         phone: str("phone"),
         interest: str("interest"),
         stage: str("stage") || "Lead",
+        status: str("status") || "Open",
         source: str("source"),
       });
     } else if (modal.type === "contact") {
@@ -1977,6 +2006,14 @@ function EntityModal({
               <label>Stage</label>
               <select value={str("stage") || "Lead"} onChange={(e) => set("stage", e.target.value)}>
                 {STAGES.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Status</label>
+              <select value={str("status") || "Open"} onChange={(e) => set("status", e.target.value)}>
+                {LEAD_STATUSES.map((s) => (
                   <option key={s}>{s}</option>
                 ))}
               </select>

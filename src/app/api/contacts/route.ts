@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ensureLeadForBuyerContact } from "@/lib/contactLead";
 
 export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get("type");
@@ -58,6 +59,10 @@ export async function POST(req: NextRequest) {
         commissionSplit: body.commissionSplit || null,
       },
     });
+  }
+
+  if (types.includes("Buyer")) {
+    await ensureLeadForBuyerContact(contact.id);
   }
 
   const full = await prisma.contact.findUnique({

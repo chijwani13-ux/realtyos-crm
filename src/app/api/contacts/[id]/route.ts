@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ensureLeadForBuyerContact } from "@/lib/contactLead";
 
 export async function GET(
   _req: NextRequest,
@@ -100,6 +101,10 @@ export async function PUT(
     });
   } else {
     await prisma.brokerDetails.deleteMany({ where: { contactId: id } });
+  }
+
+  if (types.includes("Buyer")) {
+    await ensureLeadForBuyerContact(id);
   }
 
   const full = await prisma.contact.findUnique({

@@ -26,6 +26,7 @@ model Lead {
   phone     String
   interest  String?
   stage     String   @default("Lead") // Lead, Qualification, Consultation, Site Visit, Negotiation, Booked, Registration, Closed
+  status    String   @default("Open") // Open, On Hold, Qualified, Won, Disqualified, Rejected, Lost
   source    String?
   notes     String?
   contactId String?

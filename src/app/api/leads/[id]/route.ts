@@ -18,21 +18,35 @@ export async function PUT(
       phone: body.phone,
       interest: body.interest ?? null,
       stage: body.stage,
+      status: body.status || "Open",
       source: body.source ?? null,
       notes: body.notes ?? null,
     },
   });
 
-  if (existing && existing.stage !== lead.stage && lead.contactId) {
+  if (existing && lead.contactId && (existing.stage !== lead.stage || existing.status !== lead.status)) {
     const session = await auth();
-    await prisma.interaction.create({
-      data: {
-        contactId: lead.contactId,
-        type: "Stage Change",
-        content: `Stage changed: ${existing.stage} → ${lead.stage}`,
-        createdBy: session?.user?.name || session?.user?.email || "Unknown",
-      },
-    });
+    const createdBy = session?.user?.name || session?.user?.email || "Unknown";
+    if (existing.stage !== lead.stage) {
+      await prisma.interaction.create({
+        data: {
+          contactId: lead.contactId,
+          type: "Stage Change",
+          content: `Stage changed: ${existing.stage} → ${lead.stage}`,
+          createdBy,
+        },
+      });
+    }
+    if (existing.status !== lead.status) {
+      await prisma.interaction.create({
+        data: {
+          contactId: lead.contactId,
+          type: "Deal Update",
+          content: `Status changed: ${existing.status} → ${lead.status}`,
+          createdBy,
+        },
+      });
+    }
   }
 
   return NextResponse.json(lead);

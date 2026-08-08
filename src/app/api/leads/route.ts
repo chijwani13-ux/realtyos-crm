@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
       phone: body.phone || "",
       interest: body.interest || null,
       stage: body.stage || "Lead",
+      status: body.status || "Open",
       source: body.source || null,
       notes: body.notes || null,
       contactId,
