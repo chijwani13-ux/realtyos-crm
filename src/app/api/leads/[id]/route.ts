@@ -19,6 +19,7 @@ export async function PUT(
       interest: body.interest ?? null,
       stage: body.stage,
       status: body.status || "Open",
+      lossReason: body.status === "Lost" ? body.lossReason || null : null,
       source: body.source ?? null,
       notes: body.notes ?? null,
     },
@@ -38,11 +39,12 @@ export async function PUT(
       });
     }
     if (existing.status !== lead.status) {
+      const reasonSuffix = lead.status === "Lost" && lead.lossReason ? ` (${lead.lossReason})` : "";
       await prisma.interaction.create({
         data: {
           contactId: lead.contactId,
           type: "Deal Update",
-          content: `Status changed: ${existing.status} → ${lead.status}`,
+          content: `Status changed: ${existing.status} → ${lead.status}${reasonSuffix}`,
           createdBy,
         },
       });

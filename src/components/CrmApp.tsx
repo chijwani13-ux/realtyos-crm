@@ -16,24 +16,22 @@ const STAGES = [
 const EVENT_TYPES = ["Call", "Meeting", "Site Visit", "Builder Meeting"] as const;
 const DOC_TYPES = ["Brochure", "Price Sheet", "Floor Plan", "Legal Document", "RERA PDF"] as const;
 const CONTACT_TYPES = ["Buyer", "Builder", "Vendor", "Seller", "Broker"] as const;
-const LEAD_STATUSES = [
-  "Open",
-  "On Hold",
-  "Qualified",
-  "Won",
-  "Disqualified",
-  "Rejected",
-  "Lost",
-] as const;
+const LEAD_STATUSES = ["Open", "On Hold", "Won", "Lost"] as const;
 const LEAD_STATUS_COLORS: Record<string, string> = {
   Open: "#3b82f6",
   "On Hold": "#f59e0b",
-  Qualified: "#8b5cf6",
   Won: "#22c55e",
-  Disqualified: "#ef4444",
-  Rejected: "#ef4444",
-  Lost: "#6b7280",
+  Lost: "#ef4444",
 };
+const LOSS_REASONS = [
+  "Disqualified",
+  "Rejected",
+  "Budget Mismatch",
+  "Not Interested",
+  "No Response",
+  "Lost to Competitor",
+  "Other",
+] as const;
 const INTERACTION_TYPES = [
   "Call",
   "WhatsApp",
@@ -64,6 +62,7 @@ type Lead = {
   interest: string | null;
   stage: string;
   status: string;
+  lossReason: string | null;
   source: string | null;
   notes: string | null;
   contactId: string | null;
@@ -706,10 +705,13 @@ function Pipeline({
   setDragId: (id: string | null) => void;
 }) {
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const openLeads = leads.filter((l) => l.status === "Open" || l.status === "On Hold");
+  const closedCount = leads.length - openLeads.length;
   return (
+    <div>
     <div className="pipeline">
       {STAGES.map((s) => {
-        const cards = leads.filter((l) => l.stage === s);
+        const cards = openLeads.filter((l) => l.stage === s);
         return (
           <div className="pcol" key={s}>
             <div className="pcol-head">
@@ -746,6 +748,12 @@ function Pipeline({
           </div>
         );
       })}
+    </div>
+    {closedCount > 0 && (
+      <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 6 }}>
+        {closedCount} closed lead{closedCount === 1 ? "" : "s"} (Won/Lost) not shown on the board — view them in the Leads list.
+      </div>
+    )}
     </div>
   );
 }
@@ -995,13 +1003,28 @@ function LeadsTab({
   setDragId: (id: string | null) => void;
   onOpenContact: (id: string) => void;
 }) {
+  const [statusFilter, setStatusFilter] = useState<string>("All");
   function exportCsv() {
     downloadCsv(
       `realtyos-leads-${todayStr()}.csv`,
-      ["Name", "Phone", "Stage", "Status", "Source", "Interest", "Created"],
-      leads.map((l) => [l.name, l.phone, l.stage, l.status, l.source || "", l.interest || "", fmt(l.createdAt)])
+      ["Name", "Phone", "Stage", "Status", "Loss Reason", "Source", "Interest", "Created"],
+      leads.map((l) => [
+        l.name,
+        l.phone,
+        l.stage,
+        l.status,
+        l.lossReason || "",
+        l.source || "",
+        l.interest || "",
+        fmt(l.createdAt),
+      ])
     );
   }
+  const counts = LEAD_STATUSES.reduce<Record<string, number>>((acc, s) => {
+    acc[s] = leads.filter((l) => l.status === s).length;
+    return acc;
+  }, {});
+  const visibleLeads = statusFilter === "All" ? leads : leads.filter((l) => l.status === statusFilter);
   return (
     <>
       <div className="page-head">
@@ -1019,11 +1042,28 @@ function LeadsTab({
       </div>
       <Pipeline leads={leads} onMoveStage={onMoveStage} dragId={dragId} setDragId={setDragId} />
       <div style={{ height: 20 }} />
-      {leads.length === 0 ? (
-        <div className="empty">No leads yet.</div>
+      <div className="chip-row" style={{ marginBottom: 14 }}>
+        <button
+          className={`chip ${statusFilter === "All" ? "active" : ""}`}
+          onClick={() => setStatusFilter("All")}
+        >
+          All {leads.length}
+        </button>
+        {LEAD_STATUSES.map((s) => (
+          <button
+            key={s}
+            className={`chip ${statusFilter === s ? "active" : ""}`}
+            onClick={() => setStatusFilter(s)}
+          >
+            {s} {counts[s]}
+          </button>
+        ))}
+      </div>
+      {visibleLeads.length === 0 ? (
+        <div className="empty">No leads match this filter.</div>
       ) : (
         <div className="list-grid">
-          {leads.map((l) => (
+          {visibleLeads.map((l) => (
             <div className="row-card" key={l.id}>
               <div className="rc-main">
                 <div
@@ -1035,6 +1075,7 @@ function LeadsTab({
                 </div>
                 <div className="rc-meta">
                   {l.phone} · {esc(l.interest)} · {esc(l.source)}
+                  {l.status === "Lost" && l.lossReason ? ` · ${l.lossReason}` : ""}
                 </div>
               </div>
               <span className="pill pill-stage">{l.stage}</span>
@@ -1887,6 +1928,7 @@ function EntityModal({
         interest: str("interest"),
         stage: str("stage") || "Lead",
         status: str("status") || "Open",
+        lossReason: str("status") === "Lost" ? str("lossReason") || null : null,
         source: str("source"),
       });
     } else if (modal.type === "contact") {
@@ -2018,6 +2060,17 @@ function EntityModal({
                 ))}
               </select>
             </div>
+            {str("status") === "Lost" && (
+              <div className="field">
+                <label>Loss Reason</label>
+                <select value={str("lossReason")} onChange={(e) => set("lossReason", e.target.value)}>
+                  <option value="">Select a reason…</option>
+                  {LOSS_REASONS.map((r) => (
+                    <option key={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="field">
               <label>Source</label>
               <input value={str("source")} onChange={(e) => set("source", e.target.value)} />

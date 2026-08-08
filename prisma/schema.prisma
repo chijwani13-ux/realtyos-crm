@@ -26,7 +26,8 @@ model Lead {
   phone     String
   interest  String?
   stage     String   @default("Lead") // Lead, Qualification, Consultation, Site Visit, Negotiation, Booked, Registration, Closed
-  status    String   @default("Open") // Open, On Hold, Qualified, Won, Disqualified, Rejected, Lost
+  status    String   @default("Open") // Open, On Hold, Won, Lost
+  lossReason String? // set when status = Lost: Disqualified, Rejected, Budget Mismatch, Not Interested, No Response, Lost to Competitor, Other
   source    String?
   notes     String?
   contactId String?
