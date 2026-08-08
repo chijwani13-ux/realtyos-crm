@@ -99,7 +99,8 @@ type Tab =
   | "tasks"
   | "notes"
   | "docs"
-  | "ai";
+  | "ai"
+  | "settings";
 
 type ModalState =
   | { type: "lead"; entity: Partial<Lead> }
@@ -404,6 +405,7 @@ export default function CrmApp() {
               ["notes", "📝 Notes"],
               ["docs", "📁 Documents"],
               ["ai", "✨ AI Assistant"],
+              ["settings", "⚙️ Settings"],
             ] as [Tab, string][]
           ).map(([id, label]) => (
             <div key={id} className={`nav-item ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
@@ -523,6 +525,7 @@ export default function CrmApp() {
                 />
               </>
             )}
+            {tab === "settings" && <SettingsTab showToast={showToast} />}
           </div>
         </div>
       </div>
@@ -1281,6 +1284,117 @@ function DocsTab({
           ))}
         </div>
       )}
+    </>
+  );
+}
+
+type Profile = { id: string; email: string; name: string | null; role: string; createdAt: string };
+
+function SettingsTab({ showToast }: { showToast: (msg: string) => void }) {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api<Profile>("/api/settings/profile")
+      .then(setProfile)
+      .catch(() => showToast("Could not load profile"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleChangePassword() {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      showToast("Fill in all password fields");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast("New passwords don't match");
+      return;
+    }
+    if (newPassword.length < 8) {
+      showToast("New password must be at least 8 characters");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        showToast(json.error || "Could not change password");
+      } else {
+        showToast("Password updated");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch {
+      showToast("Something went wrong. Try again.");
+    }
+    setSaving(false);
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h2>Settings</h2>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 20, maxWidth: 440 }}>
+        <h3>Profile</h3>
+        {profile ? (
+          <>
+            <div className="entity-field">
+              <span className="l">Name</span>
+              <span className="v">{profile.name || "—"}</span>
+            </div>
+            <div className="entity-field">
+              <span className="l">Email</span>
+              <span className="v">{profile.email}</span>
+            </div>
+            <div className="entity-field">
+              <span className="l">Role</span>
+              <span className="v">{profile.role}</span>
+            </div>
+          </>
+        ) : (
+          <div className="empty-sm">Loading…</div>
+        )}
+      </div>
+
+      <div className="card" style={{ maxWidth: 440 }}>
+        <h3>Change Password</h3>
+        <div className="field">
+          <label>Current Password</label>
+          <input
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label>New Password</label>
+          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Confirm New Password</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </div>
+        <button className="btn" onClick={handleChangePassword} disabled={saving}>
+          {saving ? "Saving…" : "Update Password"}
+        </button>
+      </div>
     </>
   );
 }

@@ -10,6 +10,16 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         String   @default("Owner") // Owner, Employee (for future employee logins)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model Lead {
   id        String   @id @default(cuid())
   name      String
