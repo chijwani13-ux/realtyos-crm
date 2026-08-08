@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Lead {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  interest  String?
+  stage     String   @default("Lead") // Lead, Qualification, Consultation, Site Visit, Negotiation, Booked, Registration, Closed
+  source    String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Buyer {
+  id                  String    @id @default(cuid())
+  name                String
+  budget              String?
+  location            String?
+  needs               String?
+  status              String    @default("Looking")
+  lastContact         DateTime?
+  nextFollowUp        DateTime?
+  interestedProjects  String? // comma-separated project names/ids, simple free text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model Builder {
+  id            String    @id @default(cuid())
+  name          String
+  contact       String?
+  projects      String?
+  commission    String?
+  lastVisited   DateTime?
+  nextVisit     DateTime?
+  brochureLink  String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  name           String
+  builder        String?
+  price          String?
+  photo          String? // base64 data URL, compressed client-side
+  brochureLink   String?
+  floorPlanLink  String?
+  amenities      String?
+  nearby         String?
+  commission     String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  title     String
+  type      String   @default("Meeting") // Call, Meeting, Site Visit, Builder Meeting
+  date      String // yyyy-mm-dd
+  time      String?
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  title     String
+  dueDate   String?
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  type      String   @default("Meeting") // Meeting, Builder, Buyer
+  relatedTo String?
+  text      String
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   @default("Brochure")
+  link      String
+  createdAt DateTime @default(now())
+}
