@@ -146,6 +146,23 @@ body {
 
 .toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#10203a; color:#fff; padding:12px 20px; border-radius:12px; font-size:13.5px; font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,0.25); z-index:200; }
 
+.chip-row{ display:flex; gap:8px; flex-wrap:wrap; }
+.chip{ border:1px solid var(--border); background:var(--surface-solid); padding:8px 14px; border-radius:20px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--ink-soft); }
+.chip.active{ background:var(--grad); color:#fff; border-color:transparent; }
+.badge{ font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--grad-soft); color:#4f46e5; display:inline-block; margin-right:4px; }
+
+.detail-back{ font-size:12.5px; font-weight:700; color:var(--ink-soft); cursor:pointer; margin-bottom:14px; display:inline-block; }
+.detail-header{ display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:18px; }
+.detail-name{ font-size:22px; font-weight:800; font-family: var(--font-plus-jakarta), sans-serif; }
+.detail-meta{ font-size:13px; color:var(--ink-soft); margin-top:4px; }
+
+.timeline{ display:flex; flex-direction:column; gap:10px; }
+.timeline-item{ display:flex; gap:10px; border:1px solid var(--border); background:var(--surface-solid); border-radius:var(--radius-sm); padding:12px 14px; }
+.timeline-icon{ width:30px; height:30px; border-radius:50%; background:var(--grad-soft); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.timeline-body{ flex:1; min-width:0; }
+.timeline-content{ font-size:13px; }
+.timeline-meta{ font-size:11px; color:var(--ink-faint); margin-top:3px; }
+
 @media (max-width:820px){
   .app-shell{ flex-direction:column; }
   .sidebar{ width:100%; flex-direction:row; overflow-x:auto; padding:12px; }

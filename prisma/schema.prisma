@@ -28,8 +28,72 @@ model Lead {
   stage     String   @default("Lead") // Lead, Qualification, Consultation, Site Visit, Negotiation, Booked, Registration, Closed
   source    String?
   notes     String?
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([contactId])
+}
+
+// --- Contact-centric model ---
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  types     String[] // Buyer, Builder, Vendor, Seller, Broker (multi-select)
+  company   String?
+  tags      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyerDetails    BuyerDetails?
+  builderDetails  BuilderDetails?
+  brokerDetails   BrokerDetails?
+  interactions    Interaction[]
+  leads           Lead[]
+  builderProjects Project[] @relation("ProjectBuilder")
+}
+
+model BuyerDetails {
+  contactId         String    @id
+  contact           Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  budget            String?
+  preferredLocation String?
+  needs             String?
+  status            String    @default("Looking")
+  nextFollowUp      DateTime?
+}
+
+model BuilderDetails {
+  contactId           String    @id
+  contact             Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  projects            String?
+  commissionStructure String?
+  lastVisited         DateTime?
+  nextVisit           DateTime?
+  brochureLink        String?
+}
+
+model BrokerDetails {
+  contactId       String  @id
+  contact         Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agencyName      String?
+  commissionSplit String?
+}
+
+model Interaction {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  type      String // Call, WhatsApp, Meeting, Email, Site Visit, Note, Document Shared, Stage Change, Deal Update
+  content   String
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
 }
 
 model Buyer {
@@ -63,7 +127,9 @@ model Builder {
 model Project {
   id             String   @id @default(cuid())
   name           String
-  builder        String?
+  builder        String? // legacy free-text builder name, kept as fallback
+  builderId      String?
+  builderContact Contact? @relation("ProjectBuilder", fields: [builderId], references: [id], onDelete: SetNull)
   price          String?
   photo          String? // base64 data URL, compressed client-side
   brochureLink   String?
@@ -74,6 +140,8 @@ model Project {
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([builderId])
 }
 
 model Event {

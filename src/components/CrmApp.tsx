@@ -14,8 +14,30 @@ const STAGES = [
   "Closed",
 ] as const;
 const EVENT_TYPES = ["Call", "Meeting", "Site Visit", "Builder Meeting"] as const;
-const NOTE_TYPES = ["Meeting", "Builder", "Buyer"] as const;
 const DOC_TYPES = ["Brochure", "Price Sheet", "Floor Plan", "Legal Document", "RERA PDF"] as const;
+const CONTACT_TYPES = ["Buyer", "Builder", "Vendor", "Seller", "Broker"] as const;
+const INTERACTION_TYPES = [
+  "Call",
+  "WhatsApp",
+  "Meeting",
+  "Email",
+  "Site Visit",
+  "Note",
+  "Document Shared",
+  "Stage Change",
+  "Deal Update",
+] as const;
+const INTERACTION_ICONS: Record<string, string> = {
+  Call: "📞",
+  WhatsApp: "💬",
+  Meeting: "🤝",
+  Email: "✉️",
+  "Site Visit": "🏠",
+  Note: "📝",
+  "Document Shared": "📄",
+  "Stage Change": "🔀",
+  "Deal Update": "💰",
+};
 
 type Lead = {
   id: string;
@@ -25,34 +47,54 @@ type Lead = {
   stage: string;
   source: string | null;
   notes: string | null;
+  contactId: string | null;
   createdAt: string;
 };
-type Buyer = {
-  id: string;
-  name: string;
+type BuyerDetails = {
   budget: string | null;
-  location: string | null;
+  preferredLocation: string | null;
   needs: string | null;
   status: string;
-  lastContact: string | null;
   nextFollowUp: string | null;
-  interestedProjects: string | null;
 };
-type Builder = {
-  id: string;
-  name: string;
-  contact: string | null;
+type BuilderDetails = {
   projects: string | null;
-  commission: string | null;
+  commissionStructure: string | null;
   lastVisited: string | null;
   nextVisit: string | null;
   brochureLink: string | null;
-  notes: string | null;
+};
+type BrokerDetails = {
+  agencyName: string | null;
+  commissionSplit: string | null;
+};
+type Contact = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  types: string[];
+  company: string | null;
+  tags: string | null;
+  createdAt: string;
+  buyerDetails: BuyerDetails | null;
+  builderDetails: BuilderDetails | null;
+  brokerDetails: BrokerDetails | null;
+};
+type Interaction = {
+  id: string;
+  contactId: string;
+  type: string;
+  content: string;
+  createdBy: string | null;
+  createdAt: string;
 };
 type Project = {
   id: string;
   name: string;
   builder: string | null;
+  builderId: string | null;
+  builderContact?: { id: string; name: string } | null;
   price: string | null;
   photo: string | null;
   brochureLink: string | null;
@@ -75,13 +117,6 @@ type Task = {
   dueDate: string | null;
   done: boolean;
 };
-type Note = {
-  id: string;
-  type: string;
-  relatedTo: string | null;
-  text: string;
-  createdAt: string;
-};
 type DocumentItem = {
   id: string;
   name: string;
@@ -92,25 +127,23 @@ type DocumentItem = {
 type Tab =
   | "dashboard"
   | "leads"
-  | "buyers"
-  | "builders"
+  | "contacts"
   | "projects"
   | "calendar"
   | "tasks"
-  | "notes"
   | "docs"
   | "ai"
   | "settings";
 
 type ModalState =
   | { type: "lead"; entity: Partial<Lead> }
-  | { type: "buyer"; entity: Partial<Buyer> }
-  | { type: "builder"; entity: Partial<Builder> }
+  | { type: "contact"; entity: Partial<Contact> }
   | { type: "project"; entity: Partial<Project> }
   | { type: "event"; entity: Partial<EventItem> }
   | { type: "task"; entity: Partial<Task> }
-  | { type: "note"; entity: Partial<Note> }
-  | { type: "doc"; entity: Partial<DocumentItem> };
+  | { type: "doc"; entity: Partial<DocumentItem> }
+  | { type: "interaction"; contactId: string }
+  | { type: "whatsapp"; project: Project };
 
 function esc(s: string | null | undefined) {
   return s || "";
@@ -125,10 +158,16 @@ function fmt(d: string | null) {
   if (!d) return "";
   return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
-function waLink(phone: string) {
+function fmtDateTime(d: string) {
+  return new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+function normalizePhone(phone: string) {
   let digits = (phone || "").replace(/[^0-9]/g, "");
   if (digits.length === 10) digits = "91" + digits;
-  return "https://wa.me/" + digits;
+  return digits;
+}
+function waLink(phone: string) {
+  return "https://wa.me/" + normalizePhone(phone);
 }
 
 async function api<T>(url: string, opts?: RequestInit): Promise<T> {
@@ -162,14 +201,31 @@ function compressImage(file: File, maxWidth: number): Promise<string> {
   });
 }
 
+// ---- CSV export ----
+function csvValue(v: unknown): string {
+  const s = v === null || v === undefined ? "" : String(v);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
+  const lines = [headers.map(csvValue).join(","), ...rows.map((r) => r.map(csvValue).join(","))];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function CrmApp() {
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [buyers, setBuyers] = useState<Buyer[]>([]);
-  const [builders, setBuilders] = useState<Builder[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -178,6 +234,11 @@ export default function CrmApp() {
   const [confirmDelete, setConfirmDelete] = useState<{ kind: string; id: string; label: string } | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [contactDetail, setContactDetail] = useState<(Contact & { interactions: Interaction[] }) | null>(null);
+  const [contactTypeFilter, setContactTypeFilter] = useState<string>("");
+  const [contactSearch, setContactSearch] = useState("");
 
   const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
@@ -190,23 +251,19 @@ export default function CrmApp() {
   }
 
   async function loadAll() {
-    const [l, b, bl, p, e, t, n, d] = await Promise.all([
+    const [l, c, p, e, t, d] = await Promise.all([
       api<Lead[]>("/api/leads"),
-      api<Buyer[]>("/api/buyers"),
-      api<Builder[]>("/api/builders"),
+      api<Contact[]>("/api/contacts"),
       api<Project[]>("/api/projects"),
       api<EventItem[]>("/api/events"),
       api<Task[]>("/api/tasks"),
-      api<Note[]>("/api/notes"),
       api<DocumentItem[]>("/api/documents"),
     ]);
     setLeads(l);
-    setBuyers(b);
-    setBuilders(bl);
+    setContacts(c);
     setProjects(p);
     setEvents(e);
     setTasks(t);
-    setNotes(n);
     setDocs(d);
     setLoaded(true);
   }
@@ -214,6 +271,17 @@ export default function CrmApp() {
   useEffect(() => {
     loadAll();
   }, []);
+
+  async function loadContactDetail(id: string) {
+    const full = await api<Contact & { interactions: Interaction[] }>(`/api/contacts/${id}`);
+    setContactDetail(full);
+  }
+
+  function openContact(id: string) {
+    setTab("contacts");
+    setSelectedContactId(id);
+    loadContactDetail(id);
+  }
 
   // ---- CRUD helpers ----
   async function saveLead(data: Partial<Lead>) {
@@ -223,29 +291,23 @@ export default function CrmApp() {
     } else {
       const created = await api<Lead>("/api/leads", { method: "POST", body: JSON.stringify(data) });
       setLeads((prev) => [created, ...prev]);
+      loadAll();
     }
     setModal(null);
   }
-  async function saveBuyer(data: Partial<Buyer>) {
+
+  async function saveContact(data: Partial<Contact> & Record<string, unknown>) {
     if (data.id) {
-      const updated = await api<Buyer>(`/api/buyers/${data.id}`, { method: "PUT", body: JSON.stringify(data) });
-      setBuyers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      const updated = await api<Contact>(`/api/contacts/${data.id}`, { method: "PUT", body: JSON.stringify(data) });
+      setContacts((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      if (selectedContactId === updated.id) loadContactDetail(updated.id);
     } else {
-      const created = await api<Buyer>("/api/buyers", { method: "POST", body: JSON.stringify(data) });
-      setBuyers((prev) => [created, ...prev]);
+      const created = await api<Contact>("/api/contacts", { method: "POST", body: JSON.stringify(data) });
+      setContacts((prev) => [created, ...prev]);
     }
     setModal(null);
   }
-  async function saveBuilder(data: Partial<Builder>) {
-    if (data.id) {
-      const updated = await api<Builder>(`/api/builders/${data.id}`, { method: "PUT", body: JSON.stringify(data) });
-      setBuilders((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-    } else {
-      const created = await api<Builder>("/api/builders", { method: "POST", body: JSON.stringify(data) });
-      setBuilders((prev) => [created, ...prev]);
-    }
-    setModal(null);
-  }
+
   async function saveProject(data: Partial<Project>) {
     if (data.id) {
       const updated = await api<Project>(`/api/projects/${data.id}`, { method: "PUT", body: JSON.stringify(data) });
@@ -271,15 +333,18 @@ export default function CrmApp() {
     setTasks((prev) => [created, ...prev]);
     setModal(null);
   }
-  async function saveNote(data: Partial<Note>) {
-    const created = await api<Note>("/api/notes", { method: "POST", body: JSON.stringify(data) });
-    setNotes((prev) => [created, ...prev]);
-    setModal(null);
-  }
   async function saveDoc(data: Partial<DocumentItem>) {
     const created = await api<DocumentItem>("/api/documents", { method: "POST", body: JSON.stringify(data) });
     setDocs((prev) => [created, ...prev]);
     setModal(null);
+  }
+
+  async function logInteraction(contactId: string, type: string, content: string) {
+    await api<Interaction>(`/api/contacts/${contactId}/interactions`, {
+      method: "POST",
+      body: JSON.stringify({ type, content }),
+    });
+    if (selectedContactId === contactId) loadContactDetail(contactId);
   }
 
   function requestDelete(kind: string, id: string, label: string) {
@@ -293,13 +358,13 @@ export default function CrmApp() {
         await api(`/api/leads/${id}`, { method: "DELETE" });
         setLeads((prev) => prev.filter((x) => x.id !== id));
       },
-      buyer: async () => {
-        await api(`/api/buyers/${id}`, { method: "DELETE" });
-        setBuyers((prev) => prev.filter((x) => x.id !== id));
-      },
-      builder: async () => {
-        await api(`/api/builders/${id}`, { method: "DELETE" });
-        setBuilders((prev) => prev.filter((x) => x.id !== id));
+      contact: async () => {
+        await api(`/api/contacts/${id}`, { method: "DELETE" });
+        setContacts((prev) => prev.filter((x) => x.id !== id));
+        if (selectedContactId === id) {
+          setSelectedContactId(null);
+          setContactDetail(null);
+        }
       },
       project: async () => {
         await api(`/api/projects/${id}`, { method: "DELETE" });
@@ -312,10 +377,6 @@ export default function CrmApp() {
       task: async () => {
         await api(`/api/tasks/${id}`, { method: "DELETE" });
         setTasks((prev) => prev.filter((x) => x.id !== id));
-      },
-      note: async () => {
-        await api(`/api/notes/${id}`, { method: "DELETE" });
-        setNotes((prev) => prev.filter((x) => x.id !== id));
       },
       doc: async () => {
         await api(`/api/documents/${id}`, { method: "DELETE" });
@@ -339,6 +400,16 @@ export default function CrmApp() {
     if (!lead) return;
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage } : l)));
     await api(`/api/leads/${id}`, { method: "PUT", body: JSON.stringify({ ...lead, stage }) });
+  }
+
+  async function shareProjectOnWhatsApp(project: Project, contact: Contact, message: string) {
+    if (!contact.phone) {
+      showToast("This contact has no phone number.");
+      return;
+    }
+    window.open(`https://wa.me/${normalizePhone(contact.phone)}?text=${encodeURIComponent(message)}`, "_blank");
+    await logInteraction(contact.id, "Document Shared", `Brochure sent — ${project.name}`);
+    showToast(`Shared ${project.name} with ${contact.name}`);
   }
 
   async function sendAI() {
@@ -374,12 +445,14 @@ export default function CrmApp() {
   }
 
   const todaysTasks = tasks.filter((t) => t.dueDate === todayStr() && !t.done);
-  const todaysFollowups = buyers.filter((b) => isToday(b.nextFollowUp));
+  const todaysFollowups = contacts.filter((c) => c.buyerDetails && isToday(c.buyerDetails.nextFollowUp));
   const todaysVisits = events.filter((e) => e.date === todayStr() && e.type === "Site Visit");
   const todaysMeetings = events.filter(
     (e) => e.date === todayStr() && (e.type === "Meeting" || e.type === "Builder Meeting")
   );
-  const buildersToVisit = builders.filter((b) => b.nextVisit && b.nextVisit <= todayStr());
+  const buildersToVisit = contacts.filter(
+    (c) => c.builderDetails?.nextVisit && c.builderDetails.nextVisit <= todayStr()
+  );
   const recentLeads = [...leads].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
 
   return (
@@ -397,18 +470,26 @@ export default function CrmApp() {
             [
               ["dashboard", "🏠 Dashboard"],
               ["leads", "📋 Leads"],
-              ["buyers", "🧑‍💼 Buyers"],
-              ["builders", "🏗️ Builders"],
+              ["contacts", "👥 Contacts"],
               ["projects", "🏢 Projects"],
               ["calendar", "📅 Calendar"],
               ["tasks", "✅ Tasks"],
-              ["notes", "📝 Notes"],
               ["docs", "📁 Documents"],
               ["ai", "✨ AI Assistant"],
               ["settings", "⚙️ Settings"],
             ] as [Tab, string][]
           ).map(([id, label]) => (
-            <div key={id} className={`nav-item ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
+            <div
+              key={id}
+              className={`nav-item ${tab === id ? "active" : ""}`}
+              onClick={() => {
+                setTab(id);
+                if (id !== "contacts") {
+                  setSelectedContactId(null);
+                  setContactDetail(null);
+                }
+              }}
+            >
               {label}
             </div>
           ))}
@@ -428,10 +509,12 @@ export default function CrmApp() {
                 recentLeads={recentLeads}
                 docs={docs}
                 leads={leads}
-                onQuickAdd={(type) => setModal({ type, entity: {} } as ModalState)}
-                onOpenBuyer={(id) => setModal({ type: "buyer", entity: buyers.find((b) => b.id === id) || {} })}
+                onQuickAdd={(type) => {
+                  if (type === "contact") setModal({ type: "contact", entity: {} });
+                  else setModal({ type, entity: {} } as ModalState);
+                }}
+                onOpenContact={openContact}
                 onOpenLead={(id) => setModal({ type: "lead", entity: leads.find((l) => l.id === id) || {} })}
-                onOpenBuilder={(id) => setModal({ type: "builder", entity: builders.find((b) => b.id === id) || {} })}
                 onMoveStage={moveLeadStage}
                 dragId={dragId}
                 setDragId={setDragId}
@@ -452,30 +535,40 @@ export default function CrmApp() {
                 onMoveStage={moveLeadStage}
                 dragId={dragId}
                 setDragId={setDragId}
+                onOpenContact={openContact}
               />
             )}
-            {tab === "buyers" && (
-              <BuyersTab
-                buyers={buyers}
-                onAdd={() => setModal({ type: "buyer", entity: {} })}
-                onEdit={(b) => setModal({ type: "buyer", entity: b })}
-                onDelete={(id) => requestDelete("buyer", id, buyers.find((b) => b.id === id)?.name || "buyer")}
-              />
-            )}
-            {tab === "builders" && (
-              <BuildersTab
-                builders={builders}
-                onAdd={() => setModal({ type: "builder", entity: {} })}
-                onEdit={(b) => setModal({ type: "builder", entity: b })}
-                onDelete={(id) => requestDelete("builder", id, builders.find((b) => b.id === id)?.name || "builder")}
-              />
-            )}
+            {tab === "contacts" &&
+              (selectedContactId && contactDetail ? (
+                <ContactDetail
+                  contact={contactDetail}
+                  onBack={() => {
+                    setSelectedContactId(null);
+                    setContactDetail(null);
+                  }}
+                  onEdit={() => setModal({ type: "contact", entity: contactDetail })}
+                  onDelete={() => requestDelete("contact", contactDetail.id, contactDetail.name)}
+                  onLogInteraction={() => setModal({ type: "interaction", contactId: contactDetail.id })}
+                />
+              ) : (
+                <ContactsTab
+                  contacts={contacts}
+                  typeFilter={contactTypeFilter}
+                  setTypeFilter={setContactTypeFilter}
+                  search={contactSearch}
+                  setSearch={setContactSearch}
+                  onAdd={() => setModal({ type: "contact", entity: {} })}
+                  onOpen={openContact}
+                  onDelete={(id, name) => requestDelete("contact", id, name)}
+                />
+              ))}
             {tab === "projects" && (
               <ProjectsTab
                 projects={projects}
                 onAdd={() => setModal({ type: "project", entity: {} })}
                 onEdit={(p) => setModal({ type: "project", entity: p })}
                 onDelete={(id) => requestDelete("project", id, projects.find((p) => p.id === id)?.name || "project")}
+                onShare={(p) => setModal({ type: "whatsapp", project: p })}
               />
             )}
             {tab === "calendar" && (
@@ -492,13 +585,6 @@ export default function CrmApp() {
                 onAdd={() => setModal({ type: "task", entity: {} })}
                 onToggle={toggleTask}
                 onDelete={(id) => requestDelete("task", id, tasks.find((t) => t.id === id)?.title || "task")}
-              />
-            )}
-            {tab === "notes" && (
-              <NotesTab
-                notes={notes}
-                onAdd={() => setModal({ type: "note", entity: {} })}
-                onDelete={(id) => requestDelete("note", id, "this note")}
               />
             )}
             {tab === "docs" && (
@@ -530,17 +616,38 @@ export default function CrmApp() {
         </div>
       </div>
 
-      {modal && (
+      {modal && modal.type === "whatsapp" && (
+        <WhatsAppShareModal
+          project={modal.project}
+          contacts={contacts}
+          onCancel={() => setModal(null)}
+          onShare={async (contact, message) => {
+            await shareProjectOnWhatsApp(modal.project, contact, message);
+            setModal(null);
+          }}
+        />
+      )}
+
+      {modal && modal.type === "interaction" && (
+        <LogInteractionModal
+          onCancel={() => setModal(null)}
+          onSave={async (type, content) => {
+            await logInteraction(modal.contactId, type, content);
+            setModal(null);
+          }}
+        />
+      )}
+
+      {modal && modal.type !== "whatsapp" && modal.type !== "interaction" && (
         <EntityModal
           modal={modal}
+          contacts={contacts}
           onCancel={() => setModal(null)}
           onSaveLead={saveLead}
-          onSaveBuyer={saveBuyer}
-          onSaveBuilder={saveBuilder}
+          onSaveContact={saveContact}
           onSaveProject={saveProject}
           onSaveEvent={saveEvent}
           onSaveTask={saveTask}
-          onSaveNote={saveNote}
           onSaveDoc={saveDoc}
           showToast={showToast}
         />
@@ -626,17 +733,16 @@ function Pipeline({
 
 function Dashboard(props: {
   todaysTasks: Task[];
-  todaysFollowups: Buyer[];
+  todaysFollowups: Contact[];
   todaysVisits: EventItem[];
   todaysMeetings: EventItem[];
-  buildersToVisit: Builder[];
+  buildersToVisit: Contact[];
   recentLeads: Lead[];
   docs: DocumentItem[];
   leads: Lead[];
-  onQuickAdd: (type: "lead" | "task" | "event" | "buyer" | "builder") => void;
-  onOpenBuyer: (id: string) => void;
+  onQuickAdd: (type: "lead" | "task" | "event" | "contact") => void;
+  onOpenContact: (id: string) => void;
   onOpenLead: (id: string) => void;
-  onOpenBuilder: (id: string) => void;
   onMoveStage: (id: string, stage: string) => void;
   dragId: string | null;
   setDragId: (id: string | null) => void;
@@ -666,11 +772,8 @@ function Dashboard(props: {
         <div className="qa-chip" onClick={() => props.onQuickAdd("event")}>
           + Add Event
         </div>
-        <div className="qa-chip" onClick={() => props.onQuickAdd("buyer")}>
-          + Add Buyer
-        </div>
-        <div className="qa-chip" onClick={() => props.onQuickAdd("builder")}>
-          + Add Builder
+        <div className="qa-chip" onClick={() => props.onQuickAdd("contact")}>
+          + Add Contact
         </div>
       </div>
 
@@ -679,10 +782,10 @@ function Dashboard(props: {
           <h3>
             🏗️ Builders To Visit <span className="count">{props.buildersToVisit.length}</span>
           </h3>
-          {props.buildersToVisit.map((b) => (
-            <div key={b.id} className="item-row clickable" onClick={() => props.onOpenBuilder(b.id)}>
-              <span className="item-title">{b.name}</span>
-              <span className="item-sub">{esc(b.projects)}</span>
+          {props.buildersToVisit.map((c) => (
+            <div key={c.id} className="item-row clickable" onClick={() => props.onOpenContact(c.id)}>
+              <span className="item-title">{c.name}</span>
+              <span className="item-sub">{esc(c.builderDetails?.projects)}</span>
             </div>
           ))}
         </div>
@@ -710,10 +813,10 @@ function Dashboard(props: {
           {props.todaysFollowups.length === 0 ? (
             <div className="empty-sm">No follow-ups today.</div>
           ) : (
-            props.todaysFollowups.map((b) => (
-              <div key={b.id} className="item-row clickable" onClick={() => props.onOpenBuyer(b.id)}>
-                <span className="item-title">{b.name}</span>
-                <span className="item-sub">{esc(b.needs)}</span>
+            props.todaysFollowups.map((c) => (
+              <div key={c.id} className="item-row clickable" onClick={() => props.onOpenContact(c.id)}>
+                <span className="item-title">{c.name}</span>
+                <span className="item-sub">{esc(c.buyerDetails?.needs)}</span>
               </div>
             ))
           )}
@@ -774,7 +877,11 @@ function Dashboard(props: {
             <div className="empty-sm">No leads yet.</div>
           ) : (
             props.recentLeads.map((l) => (
-              <div key={l.id} className="item-row clickable" onClick={() => props.onOpenLead(l.id)}>
+              <div
+                key={l.id}
+                className="item-row clickable"
+                onClick={() => (l.contactId ? props.onOpenContact(l.contactId) : props.onOpenLead(l.id))}
+              >
                 <span className="item-title">{l.name}</span>
                 <span className="pill pill-stage">{l.stage}</span>
               </div>
@@ -858,6 +965,7 @@ function LeadsTab({
   onMoveStage,
   dragId,
   setDragId,
+  onOpenContact,
 }: {
   leads: Lead[];
   onAdd: () => void;
@@ -866,16 +974,29 @@ function LeadsTab({
   onMoveStage: (id: string, stage: string) => void;
   dragId: string | null;
   setDragId: (id: string | null) => void;
+  onOpenContact: (id: string) => void;
 }) {
+  function exportCsv() {
+    downloadCsv(
+      `realtyos-leads-${todayStr()}.csv`,
+      ["Name", "Phone", "Stage", "Source", "Interest", "Created"],
+      leads.map((l) => [l.name, l.phone, l.stage, l.source || "", l.interest || "", fmt(l.createdAt)])
+    );
+  }
   return (
     <>
       <div className="page-head">
         <div>
           <h2>Leads</h2>
         </div>
-        <button className="btn" onClick={onAdd}>
-          + Add Lead
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={exportCsv}>
+            Export CSV
+          </button>
+          <button className="btn" onClick={onAdd}>
+            + Add Lead
+          </button>
+        </div>
       </div>
       <Pipeline leads={leads} onMoveStage={onMoveStage} dragId={dragId} setDragId={setDragId} />
       <div style={{ height: 20 }} />
@@ -886,7 +1007,13 @@ function LeadsTab({
           {leads.map((l) => (
             <div className="row-card" key={l.id}>
               <div className="rc-main">
-                <div className="rc-name">{l.name}</div>
+                <div
+                  className="rc-name"
+                  style={l.contactId ? { cursor: "pointer", color: "#4f46e5" } : {}}
+                  onClick={() => l.contactId && onOpenContact(l.contactId)}
+                >
+                  {l.name}
+                </div>
                 <div className="rc-meta">
                   {l.phone} · {esc(l.interest)} · {esc(l.source)}
                 </div>
@@ -924,46 +1051,130 @@ function fieldRow(label: string, value: string | null | undefined, isLink?: bool
   );
 }
 
-function BuyersTab({
-  buyers,
+// ---------------- CONTACTS ----------------
+
+function ContactsTab({
+  contacts,
+  typeFilter,
+  setTypeFilter,
+  search,
+  setSearch,
   onAdd,
-  onEdit,
+  onOpen,
   onDelete,
 }: {
-  buyers: Buyer[];
+  contacts: Contact[];
+  typeFilter: string;
+  setTypeFilter: (v: string) => void;
+  search: string;
+  setSearch: (v: string) => void;
   onAdd: () => void;
-  onEdit: (b: Buyer) => void;
-  onDelete: (id: string) => void;
+  onOpen: (id: string) => void;
+  onDelete: (id: string, name: string) => void;
 }) {
+  const filtered = useMemo(() => {
+    return contacts.filter((c) => {
+      if (typeFilter && !c.types.includes(typeFilter)) return false;
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const hay = `${c.name} ${c.phone || ""} ${c.company || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [contacts, typeFilter, search]);
+
+  function exportCsv() {
+    downloadCsv(
+      `realtyos-contacts-${todayStr()}.csv`,
+      ["Name", "Phone", "Email", "Types", "Company", "Budget", "Needs", "Builder Commission", "Broker Agency"],
+      filtered.map((c) => [
+        c.name,
+        c.phone || "",
+        c.email || "",
+        c.types.join("/"),
+        c.company || "",
+        c.buyerDetails?.budget || "",
+        c.buyerDetails?.needs || "",
+        c.builderDetails?.commissionStructure || "",
+        c.brokerDetails?.agencyName || "",
+      ])
+    );
+  }
+
   return (
     <>
       <div className="page-head">
         <div>
-          <h2>Buyers</h2>
+          <h2>Contacts</h2>
         </div>
-        <button className="btn" onClick={onAdd}>
-          + Add Buyer
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={exportCsv}>
+            Export CSV
+          </button>
+          <button className="btn" onClick={onAdd}>
+            + Add Contact
+          </button>
+        </div>
       </div>
-      {buyers.length === 0 ? (
-        <div className="empty">No buyer profiles yet.</div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, phone, company…"
+          style={{
+            flex: "1 1 220px",
+            padding: "9px 14px",
+            border: "1px solid var(--border)",
+            borderRadius: 20,
+            fontSize: 13,
+            background: "var(--surface-solid)",
+          }}
+        />
+      </div>
+      <div className="chip-row" style={{ marginBottom: 18 }}>
+        <div className={`chip ${typeFilter === "" ? "active" : ""}`} onClick={() => setTypeFilter("")}>
+          All
+        </div>
+        {CONTACT_TYPES.map((t) => (
+          <div key={t} className={`chip ${typeFilter === t ? "active" : ""}`} onClick={() => setTypeFilter(t)}>
+            {t}
+          </div>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="empty">No contacts match.</div>
       ) : (
-        <div className="card-grid">
-          {buyers.map((b) => (
-            <div className="entity-card" key={b.id}>
-              <div className="top-strip" />
-              <div className="entity-name">{b.name}</div>
-              {fieldRow("Budget", b.budget)}
-              {fieldRow("Location", b.location)}
-              {fieldRow("Needs", b.needs)}
-              {fieldRow("Status", b.status)}
-              {fieldRow("Last Contact", fmt(b.lastContact))}
-              {fieldRow("Next Follow-up", fmt(b.nextFollowUp))}
-              <div className="entity-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => onEdit(b)}>
-                  Edit
-                </button>
-                <button className="btn-danger" onClick={() => onDelete(b.id)}>
+        <div className="list-grid">
+          {filtered.map((c) => (
+            <div className="row-card" key={c.id}>
+              <div className="rc-main" style={{ cursor: "pointer" }} onClick={() => onOpen(c.id)}>
+                <div className="rc-name">{c.name}</div>
+                <div className="rc-meta">
+                  {c.phone || "No phone"} {c.company ? `· ${c.company}` : ""}
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  {c.types.map((t) => (
+                    <span key={t} className="badge">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="row-actions">
+                {c.phone && (
+                  <div className="quick-actions" style={{ display: "flex", gap: 6 }}>
+                    <a className="qa-btn" href={`tel:${c.phone.replace(/[^0-9+]/g, "")}`} title="Call">
+                      📞
+                    </a>
+                    <a className="qa-btn" href={waLink(c.phone)} target="_blank" rel="noopener" title="WhatsApp">
+                      💬
+                    </a>
+                  </div>
+                )}
+                <button className="btn-danger" onClick={() => onDelete(c.id, c.name)}>
                   Delete
                 </button>
               </div>
@@ -975,66 +1186,122 @@ function BuyersTab({
   );
 }
 
-function BuildersTab({
-  builders,
-  onAdd,
+function ContactDetail({
+  contact,
+  onBack,
   onEdit,
   onDelete,
+  onLogInteraction,
 }: {
-  builders: Builder[];
-  onAdd: () => void;
-  onEdit: (b: Builder) => void;
-  onDelete: (id: string) => void;
+  contact: Contact & { interactions: Interaction[] };
+  onBack: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onLogInteraction: () => void;
 }) {
+  function exportCsv() {
+    downloadCsv(
+      `realtyos-${contact.name.replace(/\s+/g, "-").toLowerCase()}-history-${todayStr()}.csv`,
+      ["Type", "Content", "Logged By", "Date"],
+      contact.interactions.map((i) => [i.type, i.content, i.createdBy || "", fmtDateTime(i.createdAt)])
+    );
+  }
+
   return (
     <>
+      <div className="detail-back" onClick={onBack}>
+        ← Back to Contacts
+      </div>
+      <div className="detail-header">
+        <div>
+          <div className="detail-name">{contact.name}</div>
+          <div className="detail-meta">
+            {contact.phone || "No phone"} {contact.company ? `· ${contact.company}` : ""}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            {contact.types.map((t) => (
+              <span key={t} className="badge">
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {contact.phone && (
+            <>
+              <a className="btn btn-ghost btn-sm" href={`tel:${contact.phone.replace(/[^0-9+]/g, "")}`}>
+                📞 Call
+              </a>
+              <a className="btn btn-ghost btn-sm" href={waLink(contact.phone)} target="_blank" rel="noopener">
+                💬 WhatsApp
+              </a>
+            </>
+          )}
+          <button className="btn btn-ghost btn-sm" onClick={onEdit}>
+            Edit
+          </button>
+          <button className="btn-danger" onClick={onDelete}>
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div className="card-grid" style={{ marginBottom: 20 }}>
+        {contact.buyerDetails && (
+          <div className="entity-card">
+            <div className="entity-name">Buyer Details</div>
+            {fieldRow("Budget", contact.buyerDetails.budget)}
+            {fieldRow("Preferred Location", contact.buyerDetails.preferredLocation)}
+            {fieldRow("Needs", contact.buyerDetails.needs)}
+            {fieldRow("Status", contact.buyerDetails.status)}
+            {fieldRow("Next Follow-up", fmt(contact.buyerDetails.nextFollowUp))}
+          </div>
+        )}
+        {contact.builderDetails && (
+          <div className="entity-card">
+            <div className="entity-name">Builder Details</div>
+            {fieldRow("Projects", contact.builderDetails.projects)}
+            {fieldRow("Commission", contact.builderDetails.commissionStructure)}
+            {fieldRow("Last Visited", fmt(contact.builderDetails.lastVisited))}
+            {fieldRow("Next Visit", fmt(contact.builderDetails.nextVisit))}
+            {fieldRow("Brochure", contact.builderDetails.brochureLink, true)}
+          </div>
+        )}
+        {contact.brokerDetails && (
+          <div className="entity-card">
+            <div className="entity-name">Broker Details</div>
+            {fieldRow("Agency", contact.brokerDetails.agencyName)}
+            {fieldRow("Commission Split", contact.brokerDetails.commissionSplit)}
+          </div>
+        )}
+      </div>
+
       <div className="page-head">
         <div>
-          <h2>Builders</h2>
+          <h2 style={{ fontSize: 18 }}>History</h2>
         </div>
-        <button className="btn" onClick={onAdd}>
-          + Add Builder
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={exportCsv}>
+            Export CSV
+          </button>
+          <button className="btn" onClick={onLogInteraction}>
+            + Log Interaction
+          </button>
+        </div>
       </div>
-      {builders.length === 0 ? (
-        <div className="empty">No builder profiles yet.</div>
+
+      {contact.interactions.length === 0 ? (
+        <div className="empty">No interactions logged yet.</div>
       ) : (
-        <div className="card-grid">
-          {builders.map((b) => (
-            <div className="entity-card" key={b.id}>
-              <div className="top-strip" />
-              <div className="entity-name">{b.name}</div>
-              {fieldRow("Contact", b.contact)}
-              {fieldRow("Projects", b.projects)}
-              {fieldRow("Commission", b.commission)}
-              {fieldRow("Last Visited", fmt(b.lastVisited))}
-              {b.nextVisit && (
-                <div className="entity-field">
-                  <span className="l">Next Visit</span>
-                  <span className="v" style={b.nextVisit <= todayStr() ? { color: "var(--danger)" } : {}}>
-                    {fmt(b.nextVisit)}
-                  </span>
+        <div className="timeline">
+          {contact.interactions.map((i) => (
+            <div className="timeline-item" key={i.id}>
+              <div className="timeline-icon">{INTERACTION_ICONS[i.type] || "•"}</div>
+              <div className="timeline-body">
+                <div className="timeline-content">{i.content}</div>
+                <div className="timeline-meta">
+                  {i.type} · {i.createdBy || "Unknown"} · {fmtDateTime(i.createdAt)}
                 </div>
-              )}
-              {fieldRow("Brochure", b.brochureLink, true)}
-              {b.notes && <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8 }}>{b.notes}</div>}
-              <div className="entity-actions">
-                {b.contact && (
-                  <>
-                    <a className="btn btn-ghost btn-sm" href={`tel:${b.contact.replace(/[^0-9+]/g, "")}`} title="Call">
-                      📞
-                    </a>
-                    <a className="btn btn-ghost btn-sm" href={waLink(b.contact)} target="_blank" rel="noopener" title="WhatsApp">
-                      💬
-                    </a>
-                  </>
-                )}
-                <button className="btn btn-ghost btn-sm" onClick={() => onEdit(b)}>
-                  Edit
-                </button>
-                <button className="btn-danger" onClick={() => onDelete(b.id)}>
-                  Delete
-                </button>
               </div>
             </div>
           ))}
@@ -1043,27 +1310,87 @@ function BuildersTab({
     </>
   );
 }
+
+function LogInteractionModal({
+  onCancel,
+  onSave,
+}: {
+  onCancel: () => void;
+  onSave: (type: string, content: string) => void;
+}) {
+  const [type, setType] = useState<string>("Call");
+  const [content, setContent] = useState("");
+  return (
+    <div className="modal-back" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h3>Log Interaction</h3>
+        <div className="field">
+          <label>Type</label>
+          <select value={type} onChange={(e) => setType(e.target.value)}>
+            {INTERACTION_TYPES.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>What happened</label>
+          <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="What was discussed…" />
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            className="btn"
+            onClick={() => {
+              if (!content.trim()) return;
+              onSave(type, content.trim());
+            }}
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------- PROJECTS + WHATSAPP SHARE ----------------
 
 function ProjectsTab({
   projects,
   onAdd,
   onEdit,
   onDelete,
+  onShare,
 }: {
   projects: Project[];
   onAdd: () => void;
   onEdit: (p: Project) => void;
   onDelete: (id: string) => void;
+  onShare: (p: Project) => void;
 }) {
+  function exportCsv() {
+    downloadCsv(
+      `realtyos-projects-${todayStr()}.csv`,
+      ["Name", "Builder", "Price", "Commission", "Status"],
+      projects.map((p) => [p.name, p.builderContact?.name || p.builder || "", p.price || "", p.commission || "", ""])
+    );
+  }
   return (
     <>
       <div className="page-head">
         <div>
           <h2>Projects</h2>
         </div>
-        <button className="btn" onClick={onAdd}>
-          + Add Project
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={exportCsv}>
+            Export CSV
+          </button>
+          <button className="btn" onClick={onAdd}>
+            + Add Project
+          </button>
+        </div>
       </div>
       {projects.length === 0 ? (
         <div className="empty">No projects yet.</div>
@@ -1082,7 +1409,7 @@ function ProjectsTab({
                 <div className="top-strip" />
               )}
               <div className="entity-name">{p.name}</div>
-              {fieldRow("Builder", p.builder)}
+              {fieldRow("Builder", p.builderContact?.name || p.builder)}
               {fieldRow("Price", p.price)}
               {fieldRow("Brochure", p.brochureLink, true)}
               {fieldRow("Floor Plan", p.floorPlanLink, true)}
@@ -1098,11 +1425,112 @@ function ProjectsTab({
                   Delete
                 </button>
               </div>
+              <div className="entity-actions" style={{ marginTop: 6 }}>
+                <button
+                  className="btn btn-sm"
+                  style={{ width: "100%", background: "#25D366" }}
+                  onClick={() => onShare(p)}
+                  disabled={!p.brochureLink}
+                  title={p.brochureLink ? "Share via WhatsApp" : "Add a brochure link first"}
+                >
+                  💬 Share via WhatsApp
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
     </>
+  );
+}
+
+function WhatsAppShareModal({
+  project,
+  contacts,
+  onCancel,
+  onShare,
+}: {
+  project: Project;
+  contacts: Contact[];
+  onCancel: () => void;
+  onShare: (contact: Contact, message: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Contact | null>(null);
+  const [message, setMessage] = useState("");
+
+  const sorted = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = contacts.filter((c) => !q || c.name.toLowerCase().includes(q) || (c.phone || "").includes(q));
+    return list.sort((a, b) => {
+      const aBuyer = a.types.includes("Buyer") ? 0 : 1;
+      const bBuyer = b.types.includes("Buyer") ? 0 : 1;
+      return aBuyer - bBuyer;
+    });
+  }, [contacts, search]);
+
+  function pick(c: Contact) {
+    setSelected(c);
+    setMessage(`Hi ${c.name}, sharing details of ${project.name} — ${project.price || ""}. Brochure: ${project.brochureLink}`);
+  }
+
+  return (
+    <div className="modal-back" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h3>Share &quot;{project.name}&quot; via WhatsApp</h3>
+        {!selected ? (
+          <>
+            <div className="field">
+              <label>Pick a contact</label>
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search contacts…" />
+            </div>
+            <div className="list-grid" style={{ maxHeight: 300, overflowY: "auto" }}>
+              {sorted.length === 0 ? (
+                <div className="empty-sm">No contacts found.</div>
+              ) : (
+                sorted.map((c) => (
+                  <div
+                    key={c.id}
+                    className="item-row clickable"
+                    onClick={() => pick(c)}
+                    style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "8px 10px" }}
+                  >
+                    <span className="item-title">{c.name}</span>
+                    <span className="item-sub">
+                      {c.types.join("/")} {c.phone ? `· ${c.phone}` : "· no phone"}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={onCancel}>
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="field">
+              <label>Sending to</label>
+              <input value={`${selected.name} (${selected.phone || "no phone"})`} readOnly />
+            </div>
+            <div className="field">
+              <label>Message</label>
+              <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={4} />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setSelected(null)}>
+                ← Choose different contact
+              </button>
+              <button className="btn" onClick={() => onShare(selected, message)}>
+                Open WhatsApp
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1189,50 +1617,6 @@ function TasksTab({
               <div className="task-due">{fmt(t.dueDate)}</div>
               <button className="btn-danger" onClick={() => onDelete(t.id)}>
                 ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-function NotesTab({
-  notes,
-  onAdd,
-  onDelete,
-}: {
-  notes: Note[];
-  onAdd: () => void;
-  onDelete: (id: string) => void;
-}) {
-  const sorted = [...notes].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <h2>Notes</h2>
-        </div>
-        <button className="btn" onClick={onAdd}>
-          + Add Note
-        </button>
-      </div>
-      {sorted.length === 0 ? (
-        <div className="empty">No notes yet.</div>
-      ) : (
-        <div className="list-grid">
-          {sorted.map((n) => (
-            <div className="row-card" key={n.id}>
-              <div className="rc-main">
-                <div className="rc-name">{esc(n.relatedTo) || n.type}</div>
-                <div className="rc-meta">
-                  {n.type} · {fmt(n.createdAt)}
-                </div>
-                <div style={{ fontSize: 13, marginTop: 6 }}>{n.text}</div>
-              </div>
-              <button className="btn-danger" onClick={() => onDelete(n.id)}>
-                Delete
               </button>
             </div>
           ))}
@@ -1401,30 +1785,49 @@ function SettingsTab({ showToast }: { showToast: (msg: string) => void }) {
 
 function EntityModal({
   modal,
+  contacts,
   onCancel,
   onSaveLead,
-  onSaveBuyer,
-  onSaveBuilder,
+  onSaveContact,
   onSaveProject,
   onSaveEvent,
   onSaveTask,
-  onSaveNote,
   onSaveDoc,
   showToast,
 }: {
-  modal: ModalState;
+  modal: Exclude<ModalState, { type: "whatsapp"; project: Project } | { type: "interaction"; contactId: string }>;
+  contacts: Contact[];
   onCancel: () => void;
   onSaveLead: (d: Partial<Lead>) => void;
-  onSaveBuyer: (d: Partial<Buyer>) => void;
-  onSaveBuilder: (d: Partial<Builder>) => void;
+  onSaveContact: (d: Partial<Contact> & Record<string, unknown>) => void;
   onSaveProject: (d: Partial<Project>) => void;
   onSaveEvent: (d: Partial<EventItem>) => void;
   onSaveTask: (d: Partial<Task>) => void;
-  onSaveNote: (d: Partial<Note>) => void;
   onSaveDoc: (d: Partial<DocumentItem>) => void;
   showToast: (msg: string) => void;
 }) {
-  const [form, setForm] = useState<Record<string, unknown>>({ ...modal.entity });
+  const [form, setForm] = useState<Record<string, unknown>>(() => {
+    if (modal.type === "contact") {
+      const c = modal.entity;
+      return {
+        ...c,
+        types: c.types ? [...c.types] : [],
+        budget: c.buyerDetails?.budget,
+        preferredLocation: c.buyerDetails?.preferredLocation,
+        needs: c.buyerDetails?.needs,
+        status: c.buyerDetails?.status,
+        nextFollowUp: c.buyerDetails?.nextFollowUp,
+        projects: c.builderDetails?.projects,
+        commissionStructure: c.builderDetails?.commissionStructure,
+        lastVisited: c.builderDetails?.lastVisited,
+        nextVisit: c.builderDetails?.nextVisit,
+        brochureLink: c.builderDetails?.brochureLink,
+        agencyName: c.brokerDetails?.agencyName,
+        commissionSplit: c.brokerDetails?.commissionSplit,
+      };
+    }
+    return { ...modal.entity };
+  });
   const photoFileRef = useRef<HTMLInputElement>(null);
   const isEdit = !!modal.entity.id;
 
@@ -1433,6 +1836,14 @@ function EntityModal({
   }
   function str(key: string) {
     return (form[key] as string) || "";
+  }
+  const selectedTypes: string[] = (form.types as string[]) || [];
+  function toggleType(t: string) {
+    setForm((f) => {
+      const cur: string[] = (f.types as string[]) || [];
+      const next = cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t];
+      return { ...f, types: next };
+    });
   }
 
   async function handleSave() {
@@ -1449,36 +1860,35 @@ function EntityModal({
         stage: str("stage") || "Lead",
         source: str("source"),
       });
-    } else if (modal.type === "buyer") {
+    } else if (modal.type === "contact") {
       if (!str("name").trim()) {
         showToast("Name required");
         return;
       }
-      onSaveBuyer({
+      if (selectedTypes.length === 0) {
+        showToast("Select at least one contact type");
+        return;
+      }
+      onSaveContact({
         id: modal.entity.id,
         name: str("name"),
+        phone: str("phone"),
+        email: str("email"),
+        types: selectedTypes,
+        company: str("company"),
+        tags: str("tags"),
         budget: str("budget"),
-        location: str("location"),
+        preferredLocation: str("preferredLocation"),
         needs: str("needs"),
         status: str("status") || "Looking",
-        lastContact: str("lastContact"),
         nextFollowUp: str("nextFollowUp"),
-      });
-    } else if (modal.type === "builder") {
-      if (!str("name").trim()) {
-        showToast("Name required");
-        return;
-      }
-      onSaveBuilder({
-        id: modal.entity.id,
-        name: str("name"),
-        contact: str("contact"),
         projects: str("projects"),
-        commission: str("commission"),
+        commissionStructure: str("commissionStructure"),
         lastVisited: str("lastVisited"),
         nextVisit: str("nextVisit"),
         brochureLink: str("brochureLink"),
-        notes: str("notes"),
+        agencyName: str("agencyName"),
+        commissionSplit: str("commissionSplit"),
       });
     } else if (modal.type === "project") {
       if (!str("name").trim()) {
@@ -1498,6 +1908,7 @@ function EntityModal({
         id: modal.entity.id,
         name: str("name"),
         builder: str("builder"),
+        builderId: str("builderId") || null,
         price: str("price"),
         photo,
         brochureLink: str("brochureLink"),
@@ -1525,12 +1936,6 @@ function EntityModal({
         return;
       }
       onSaveTask({ title: str("title"), dueDate: str("dueDate") || todayStr() });
-    } else if (modal.type === "note") {
-      if (!str("text").trim()) {
-        showToast("Note text required");
-        return;
-      }
-      onSaveNote({ type: str("type") || "Meeting", relatedTo: str("relatedTo"), text: str("text") });
     } else if (modal.type === "doc") {
       if (!str("name").trim() || !str("link").trim()) {
         showToast("Name and link required");
@@ -1540,14 +1945,12 @@ function EntityModal({
     }
   }
 
-  const titleMap: Record<ModalState["type"], string> = {
+  const titleMap: Record<typeof modal.type, string> = {
     lead: `${isEdit ? "Edit" : "Add"} Lead`,
-    buyer: `${isEdit ? "Edit" : "Add"} Buyer`,
-    builder: `${isEdit ? "Edit" : "Add"} Builder`,
+    contact: `${isEdit ? "Edit" : "Add"} Contact`,
     project: `${isEdit ? "Edit" : "Add"} Project`,
     event: `${isEdit ? "Edit" : "Add"} Event`,
     task: "Add Task",
-    note: "Add Note",
     doc: "Add Document Link",
   };
 
@@ -1585,76 +1988,110 @@ function EntityModal({
           </>
         )}
 
-        {modal.type === "buyer" && (
+        {modal.type === "contact" && (
           <>
             <div className="field">
               <label>Name</label>
               <input value={str("name")} onChange={(e) => set("name", e.target.value)} />
             </div>
             <div className="field">
-              <label>Budget</label>
-              <input value={str("budget")} onChange={(e) => set("budget", e.target.value)} placeholder="₹1.5 Cr" />
+              <label>Phone</label>
+              <input value={str("phone")} onChange={(e) => set("phone", e.target.value)} placeholder="+91 ..." />
             </div>
             <div className="field">
-              <label>Location</label>
-              <input value={str("location")} onChange={(e) => set("location", e.target.value)} />
+              <label>Email</label>
+              <input value={str("email")} onChange={(e) => set("email", e.target.value)} />
             </div>
             <div className="field">
-              <label>Needs</label>
-              <input value={str("needs")} onChange={(e) => set("needs", e.target.value)} placeholder="3 BHK" />
+              <label>Company</label>
+              <input value={str("company")} onChange={(e) => set("company", e.target.value)} />
             </div>
-            <div className="field">
-              <label>Status</label>
-              <input value={str("status") || "Looking"} onChange={(e) => set("status", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Last Contact</label>
-              <input type="date" value={str("lastContact").slice(0, 10)} onChange={(e) => set("lastContact", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Next Follow-up</label>
-              <input
-                type="date"
-                value={str("nextFollowUp").slice(0, 10)}
-                onChange={(e) => set("nextFollowUp", e.target.value)}
-              />
-            </div>
-          </>
-        )}
 
-        {modal.type === "builder" && (
-          <>
             <div className="field">
-              <label>Name</label>
-              <input value={str("name")} onChange={(e) => set("name", e.target.value)} />
+              <label>Type (select all that apply)</label>
+              <div className="chip-row">
+                {CONTACT_TYPES.map((t) => (
+                  <div key={t} className={`chip ${selectedTypes.includes(t) ? "active" : ""}`} onClick={() => toggleType(t)}>
+                    {t}
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {selectedTypes.includes("Buyer") && (
+              <>
+                <div className="field">
+                  <label>Budget</label>
+                  <input value={str("budget")} onChange={(e) => set("budget", e.target.value)} placeholder="₹1.5 Cr" />
+                </div>
+                <div className="field">
+                  <label>Preferred Location</label>
+                  <input value={str("preferredLocation")} onChange={(e) => set("preferredLocation", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Needs</label>
+                  <input value={str("needs")} onChange={(e) => set("needs", e.target.value)} placeholder="3 BHK" />
+                </div>
+                <div className="field">
+                  <label>Status</label>
+                  <input value={str("status") || "Looking"} onChange={(e) => set("status", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Next Follow-up</label>
+                  <input
+                    type="date"
+                    value={str("nextFollowUp").slice(0, 10)}
+                    onChange={(e) => set("nextFollowUp", e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            {selectedTypes.includes("Builder") && (
+              <>
+                <div className="field">
+                  <label>Projects</label>
+                  <input value={str("projects")} onChange={(e) => set("projects", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Commission Structure</label>
+                  <input value={str("commissionStructure")} onChange={(e) => set("commissionStructure", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Last Visited</label>
+                  <input
+                    type="date"
+                    value={str("lastVisited").slice(0, 10)}
+                    onChange={(e) => set("lastVisited", e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label>Next Visit</label>
+                  <input type="date" value={str("nextVisit").slice(0, 10)} onChange={(e) => set("nextVisit", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Brochure Link</label>
+                  <input value={str("brochureLink")} onChange={(e) => set("brochureLink", e.target.value)} />
+                </div>
+              </>
+            )}
+
+            {selectedTypes.includes("Broker") && (
+              <>
+                <div className="field">
+                  <label>Agency Name</label>
+                  <input value={str("agencyName")} onChange={(e) => set("agencyName", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Commission Split</label>
+                  <input value={str("commissionSplit")} onChange={(e) => set("commissionSplit", e.target.value)} />
+                </div>
+              </>
+            )}
+
             <div className="field">
-              <label>Contact</label>
-              <input value={str("contact")} onChange={(e) => set("contact", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Projects</label>
-              <input value={str("projects")} onChange={(e) => set("projects", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Commission</label>
-              <input value={str("commission")} onChange={(e) => set("commission", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Last Visited</label>
-              <input type="date" value={str("lastVisited").slice(0, 10)} onChange={(e) => set("lastVisited", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Next Visit</label>
-              <input type="date" value={str("nextVisit").slice(0, 10)} onChange={(e) => set("nextVisit", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Brochure Link</label>
-              <input value={str("brochureLink")} onChange={(e) => set("brochureLink", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Notes</label>
-              <textarea value={str("notes")} onChange={(e) => set("notes", e.target.value)} />
+              <label>Tags (optional)</label>
+              <input value={str("tags")} onChange={(e) => set("tags", e.target.value)} placeholder="VIP, Cold, ..." />
             </div>
           </>
         )}
@@ -1666,8 +2103,21 @@ function EntityModal({
               <input value={str("name")} onChange={(e) => set("name", e.target.value)} />
             </div>
             <div className="field">
-              <label>Builder</label>
-              <input value={str("builder")} onChange={(e) => set("builder", e.target.value)} />
+              <label>Builder (contact)</label>
+              <select value={str("builderId")} onChange={(e) => set("builderId", e.target.value)}>
+                <option value="">— None —</option>
+                {contacts
+                  .filter((c) => c.types.includes("Builder"))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Builder (free text fallback)</label>
+              <input value={str("builder")} onChange={(e) => set("builder", e.target.value)} placeholder="If not in Contacts yet" />
             </div>
             <div className="field">
               <label>Price</label>
@@ -1743,27 +2193,6 @@ function EntityModal({
             <div className="field">
               <label>Due Date</label>
               <input type="date" value={str("dueDate") || todayStr()} onChange={(e) => set("dueDate", e.target.value)} />
-            </div>
-          </>
-        )}
-
-        {modal.type === "note" && (
-          <>
-            <div className="field">
-              <label>Type</label>
-              <select value={str("type") || "Meeting"} onChange={(e) => set("type", e.target.value)}>
-                {NOTE_TYPES.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Related To</label>
-              <input value={str("relatedTo")} onChange={(e) => set("relatedTo", e.target.value)} placeholder="e.g. Dr. Sharma" />
-            </div>
-            <div className="field">
-              <label>Note</label>
-              <textarea value={str("text")} onChange={(e) => set("text", e.target.value)} />
             </div>
           </>
         )}

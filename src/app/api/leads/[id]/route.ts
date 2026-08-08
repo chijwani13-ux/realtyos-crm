@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function PUT(
@@ -7,6 +8,9 @@ export async function PUT(
 ) {
   const { id } = await params;
   const body = await req.json();
+
+  const existing = await prisma.lead.findUnique({ where: { id } });
+
   const lead = await prisma.lead.update({
     where: { id },
     data: {
@@ -18,6 +22,19 @@ export async function PUT(
       notes: body.notes ?? null,
     },
   });
+
+  if (existing && existing.stage !== lead.stage && lead.contactId) {
+    const session = await auth();
+    await prisma.interaction.create({
+      data: {
+        contactId: lead.contactId,
+        type: "Stage Change",
+        content: `Stage changed: ${existing.stage} → ${lead.stage}`,
+        createdBy: session?.user?.name || session?.user?.email || "Unknown",
+      },
+    });
+  }
+
   return NextResponse.json(lead);
 }
 

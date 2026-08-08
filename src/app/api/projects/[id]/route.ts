@@ -12,6 +12,7 @@ export async function PUT(
     data: {
       name: body.name,
       builder: body.builder || null,
+      builderId: body.builderId || null,
       price: body.price || null,
       photo: body.photo || null,
       brochureLink: body.brochureLink || null,
