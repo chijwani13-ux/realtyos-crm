@@ -5,9 +5,12 @@ import { signOut } from "next-auth/react";
 
 const STAGES = [
   "Lead",
+  "First Call",
+  "Follow-up Call",
   "Qualification",
   "Consultation",
-  "Site Visit",
+  "Site Visit Scheduled",
+  "Site Visit Done",
   "Negotiation",
   "Booked",
   "Registration",
@@ -128,6 +131,8 @@ type EventItem = {
   type: string;
   date: string;
   time: string | null;
+  projectId: string | null;
+  project?: { id: string; name: string } | null;
 };
 type Task = {
   id: string;
@@ -660,6 +665,7 @@ export default function CrmApp() {
         <EntityModal
           modal={modal}
           contacts={contacts}
+          projects={projects}
           onCancel={() => setModal(null)}
           onSaveLead={saveLead}
           onSaveContact={saveContact}
@@ -1635,6 +1641,7 @@ function CalendarTab({
                 <div className="rc-name">{e.title}</div>
                 <div className="rc-meta">
                   {fmt(e.date)} {e.time ? `· ${e.time}` : ""} · {e.type}
+                  {e.project ? ` · ${e.project.name}` : ""}
                 </div>
               </div>
               <div className="row-actions">
@@ -1855,6 +1862,7 @@ function SettingsTab({ showToast }: { showToast: (msg: string) => void }) {
 function EntityModal({
   modal,
   contacts,
+  projects,
   onCancel,
   onSaveLead,
   onSaveContact,
@@ -1866,6 +1874,7 @@ function EntityModal({
 }: {
   modal: Exclude<ModalState, { type: "whatsapp"; project: Project } | { type: "interaction"; contactId: string }>;
   contacts: Contact[];
+  projects: Project[];
   onCancel: () => void;
   onSaveLead: (d: Partial<Lead>) => void;
   onSaveContact: (d: Partial<Contact> & Record<string, unknown>) => void;
@@ -2000,6 +2009,7 @@ function EntityModal({
         type: str("type") || "Meeting",
         date: str("date") || todayStr(),
         time: str("time"),
+        projectId: str("type") === "Site Visit" ? str("projectId") || null : null,
       });
     } else if (modal.type === "task") {
       if (!str("title").trim()) {
@@ -2263,6 +2273,19 @@ function EntityModal({
                 ))}
               </select>
             </div>
+            {str("type") === "Site Visit" && (
+              <div className="field">
+                <label>Property</label>
+                <select value={str("projectId")} onChange={(e) => set("projectId", e.target.value)}>
+                  <option value="">Select a property…</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="field">
               <label>Date</label>
               <input type="date" value={str("date") || todayStr()} onChange={(e) => set("date", e.target.value)} />

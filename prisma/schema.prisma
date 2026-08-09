@@ -25,7 +25,7 @@ model Lead {
   name      String
   phone     String
   interest  String?
-  stage     String   @default("Lead") // Lead, Qualification, Consultation, Site Visit, Negotiation, Booked, Registration, Closed
+  stage     String   @default("Lead") // Lead, First Call, Follow-up Call, Qualification, Consultation, Site Visit Scheduled, Site Visit Done, Negotiation, Booked, Registration, Closed
   status    String   @default("Open") // Open, On Hold, Won, Lost
   lossReason String? // set when status = Lost: Disqualified, Rejected, Budget Mismatch, Not Interested, No Response, Lost to Competitor, Other
   source    String?
@@ -143,6 +143,8 @@ model Project {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  events Event[]
+
   @@index([builderId])
 }
 
@@ -152,7 +154,11 @@ model Event {
   type      String   @default("Meeting") // Call, Meeting, Site Visit, Builder Meeting
   date      String // yyyy-mm-dd
   time      String?
+  projectId String? // set when type = Site Visit, links to the property being visited
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
+
+  @@index([projectId])
 }
 
 model Task {

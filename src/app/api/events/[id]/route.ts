@@ -14,7 +14,9 @@ export async function PUT(
       type: body.type,
       date: body.date,
       time: body.time || null,
+      projectId: body.projectId || null,
     },
+    include: { project: { select: { id: true, name: true } } },
   });
   return NextResponse.json(event);
 }
