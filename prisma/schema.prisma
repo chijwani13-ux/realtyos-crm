@@ -22,7 +22,48 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  assignedLeads Lead[] @relation("LeadAssignee")
+  assignedLeads     Lead[]              @relation("LeadAssignee")
+  attendanceLocations AttendanceLocation[]
+  attendance        Attendance[]
+}
+
+model AttendanceLocation {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label        String // e.g. "Office", "Site A"
+  latitude     Float
+  longitude    Float
+  radiusMeters Int      @default(200)
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Attendance {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date              String // yyyy-mm-dd, Asia/Kolkata — one row per user per day
+  checkInAt         DateTime?
+  checkInLat        Float?
+  checkInLng        Float?
+  checkInLocation   String? // matched AttendanceLocation label at check-in time
+  checkOutAt        DateTime?
+  checkOutLat       Float?
+  checkOutLng       Float?
+  status            String    @default("Incomplete") // Incomplete, Full Day, Half Day, Absent
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+model AttendanceSettings {
+  id            String @id @default("default")
+  fullDayHours  Float  @default(8)
+  halfDayHours  Float  @default(4)
 }
 
 model Lead {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "next-auth/react";
+import { todayStrIST } from "@/lib/geo";
 
 const STAGES = [
   "Lead",
@@ -157,6 +158,7 @@ type Tab =
   | "calendar"
   | "tasks"
   | "docs"
+  | "team"
   | "ai"
   | "settings";
 
@@ -522,6 +524,7 @@ export default function CrmApp({
               ["calendar", "📅 Calendar"],
               ["tasks", "✅ Tasks"],
               ["docs", "📁 Documents"],
+              ["team", "🧑‍🤝‍🧑 Team"],
               ["ai", "✨ AI Assistant"],
               ["settings", "⚙️ Settings"],
             ] as [Tab, string][]
@@ -641,6 +644,9 @@ export default function CrmApp({
                 onAdd={() => setModal({ type: "doc", entity: {} })}
                 onDelete={(id) => requestDelete("doc", id, docs.find((d) => d.id === id)?.name || "document")}
               />
+            )}
+            {tab === "team" && (
+              <TeamTab currentUser={currentUser} isOwner={isOwner} teamUsers={teamUsers} showToast={showToast} />
             )}
             {tab === "ai" && (
               <>
@@ -1787,6 +1793,381 @@ function DocsTab({
               <button className="btn-danger" onClick={() => onDelete(d.id)}>
                 Delete
               </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ---------------- TEAM / ATTENDANCE ----------------
+
+type AttendanceLocationT = {
+  id: string;
+  userId: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+};
+type AttendanceRecord = {
+  id: string;
+  userId: string;
+  user: { id: string; name: string | null; email: string };
+  date: string;
+  checkInAt: string | null;
+  checkInLocation: string | null;
+  checkOutAt: string | null;
+  status: string;
+};
+type AttendanceSettingsT = { fullDayHours: number; halfDayHours: number };
+
+function getCurrentPosition(): Promise<{ latitude: number; longitude: number }> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Location isn't available on this device/browser."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      (err) => reject(new Error(err.message || "Could not get your location.")),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+}
+
+const ATTENDANCE_STATUS_COLORS: Record<string, string> = {
+  "Full Day": "#22c55e",
+  "Half Day": "#f59e0b",
+  Absent: "#ef4444",
+  Incomplete: "#6b7280",
+};
+
+function TeamTab({
+  currentUser,
+  isOwner,
+  teamUsers,
+  showToast,
+}: {
+  currentUser: { name: string | null; email: string; role: string };
+  isOwner: boolean;
+  teamUsers: TeamUser[];
+  showToast: (msg: string) => void;
+}) {
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [locations, setLocations] = useState<AttendanceLocationT[]>([]);
+  const [settings, setSettings] = useState<AttendanceSettingsT>({ fullDayHours: 8, halfDayHours: 4 });
+
+  const [locUserId, setLocUserId] = useState("");
+  const [locLabel, setLocLabel] = useState("");
+  const [locLat, setLocLat] = useState("");
+  const [locLng, setLocLng] = useState("");
+  const [locRadius, setLocRadius] = useState("200");
+  const [savingLoc, setSavingLoc] = useState(false);
+
+  const [fullHoursInput, setFullHoursInput] = useState("8");
+  const [halfHoursInput, setHalfHoursInput] = useState("4");
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  function loadRecords() {
+    api<AttendanceRecord[]>("/api/attendance")
+      .then((rs) => {
+        setRecords(rs);
+        const today = todayStrIST();
+        setTodayRecord(rs.find((r) => r.date === today && r.user.email === currentUser.email) || null);
+      })
+      .catch(() => showToast("Could not load attendance"));
+  }
+
+  useEffect(() => {
+    loadRecords();
+    if (isOwner) {
+      api<AttendanceLocationT[]>("/api/attendance/locations").then(setLocations).catch(() => {});
+    }
+    api<AttendanceSettingsT>("/api/attendance/settings").then((s) => {
+      setSettings(s);
+      setFullHoursInput(String(s.fullDayHours));
+      setHalfHoursInput(String(s.halfDayHours));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner]);
+
+  async function handleCheckIn() {
+    setBusy(true);
+    try {
+      const pos = await getCurrentPosition();
+      const res = await fetch("/api/attendance/checkin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pos),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        showToast(json.error || "Check-in failed");
+      } else {
+        showToast(`Checked in at ${json.checkInLocation}`);
+        loadRecords();
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Check-in failed");
+    }
+    setBusy(false);
+  }
+
+  async function handleCheckOut() {
+    setBusy(true);
+    try {
+      const pos = await getCurrentPosition();
+      const res = await fetch("/api/attendance/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pos),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        showToast(json.error || "Check-out failed");
+      } else {
+        showToast(`Checked out — marked ${json.status}`);
+        loadRecords();
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Check-out failed");
+    }
+    setBusy(false);
+  }
+
+  async function handleUseMyLocation() {
+    try {
+      const pos = await getCurrentPosition();
+      setLocLat(pos.latitude.toFixed(6));
+      setLocLng(pos.longitude.toFixed(6));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Could not get location");
+    }
+  }
+
+  async function handleAddLocation() {
+    if (!locUserId || !locLabel.trim() || !locLat || !locLng) {
+      showToast("Employee, label, and coordinates are required");
+      return;
+    }
+    setSavingLoc(true);
+    try {
+      const res = await fetch("/api/attendance/locations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: locUserId,
+          label: locLabel.trim(),
+          latitude: parseFloat(locLat),
+          longitude: parseFloat(locLng),
+          radiusMeters: parseInt(locRadius, 10) || 200,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        showToast(json.error || "Could not add location");
+      } else {
+        showToast("Location added");
+        setLocLabel("");
+        setLocLat("");
+        setLocLng("");
+        setLocRadius("200");
+        setLocations((prev) => [...prev, json]);
+      }
+    } catch {
+      showToast("Something went wrong. Try again.");
+    }
+    setSavingLoc(false);
+  }
+
+  async function handleDeleteLocation(id: string) {
+    try {
+      await fetch(`/api/attendance/locations/${id}`, { method: "DELETE" });
+      setLocations((prev) => prev.filter((l) => l.id !== id));
+    } catch {
+      showToast("Could not remove location");
+    }
+  }
+
+  async function handleSaveSettings() {
+    const fullDayHours = parseFloat(fullHoursInput);
+    const halfDayHours = parseFloat(halfHoursInput);
+    if (!fullDayHours || !halfDayHours || halfDayHours >= fullDayHours) {
+      showToast("Full day hours must be greater than half day hours");
+      return;
+    }
+    setSavingSettings(true);
+    try {
+      const res = await fetch("/api/attendance/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullDayHours, halfDayHours }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        showToast(json.error || "Could not save");
+      } else {
+        setSettings(json);
+        showToast("Saved");
+      }
+    } catch {
+      showToast("Something went wrong. Try again.");
+    }
+    setSavingSettings(false);
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h2>Team</h2>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 440, marginBottom: 20 }}>
+        <h3>Today's Attendance</h3>
+        {todayRecord?.checkInAt ? (
+          <div style={{ fontSize: 13, marginBottom: 12 }}>
+            Checked in at {fmtDateTime(todayRecord.checkInAt)} ({todayRecord.checkInLocation})
+            {todayRecord.checkOutAt && <> · Checked out at {fmtDateTime(todayRecord.checkOutAt)}</>}
+          </div>
+        ) : (
+          <div className="empty-sm" style={{ marginBottom: 12 }}>
+            Not checked in yet today.
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="btn"
+            onClick={handleCheckIn}
+            disabled={busy || !!todayRecord?.checkInAt}
+          >
+            Check In
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={handleCheckOut}
+            disabled={busy || !todayRecord?.checkInAt || !!todayRecord?.checkOutAt}
+          >
+            Check Out
+          </button>
+        </div>
+      </div>
+
+      {isOwner && (
+        <div className="card" style={{ maxWidth: 520, marginBottom: 20 }}>
+          <h3>Allowed Locations</h3>
+          {locations.length === 0 ? (
+            <div className="empty-sm" style={{ marginBottom: 12 }}>
+              No locations set up yet.
+            </div>
+          ) : (
+            <div style={{ marginBottom: 16 }}>
+              {locations.map((l) => {
+                const owner = teamUsers.find((u) => u.id === l.userId);
+                return (
+                  <div className="entity-field" key={l.id}>
+                    <span className="l">
+                      {l.label} <span style={{ opacity: 0.6 }}>· {owner?.name || owner?.email || "Unknown"}</span>
+                    </span>
+                    <span className="v" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {l.radiusMeters}m radius
+                      <button className="btn-danger" onClick={() => handleDeleteLocation(l.id)}>
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="field">
+            <label>Employee</label>
+            <select value={locUserId} onChange={(e) => setLocUserId(e.target.value)}>
+              <option value="">Select…</option>
+              {teamUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name || u.email}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Label</label>
+            <input value={locLabel} onChange={(e) => setLocLabel(e.target.value)} placeholder="Office, Site A…" />
+          </div>
+          <div className="field">
+            <label>Coordinates</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={locLat} onChange={(e) => setLocLat(e.target.value)} placeholder="Latitude" />
+              <input value={locLng} onChange={(e) => setLocLng(e.target.value)} placeholder="Longitude" />
+            </div>
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={handleUseMyLocation}>
+              📍 Use My Current Location
+            </button>
+          </div>
+          <div className="field">
+            <label>Radius (meters)</label>
+            <input value={locRadius} onChange={(e) => setLocRadius(e.target.value)} />
+          </div>
+          <button className="btn" onClick={handleAddLocation} disabled={savingLoc}>
+            {savingLoc ? "Adding…" : "Add Location"}
+          </button>
+        </div>
+      )}
+
+      {isOwner && (
+        <div className="card" style={{ maxWidth: 440, marginBottom: 20 }}>
+          <h3>Attendance Thresholds</h3>
+          <div className="field">
+            <label>Full Day Hours</label>
+            <input value={fullHoursInput} onChange={(e) => setFullHoursInput(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Half Day Hours</label>
+            <input value={halfHoursInput} onChange={(e) => setHalfHoursInput(e.target.value)} />
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 10 }}>
+            Currently: {settings.fullDayHours}h = Full Day, {settings.halfDayHours}h = Half Day, below that = Absent.
+          </div>
+          <button className="btn" onClick={handleSaveSettings} disabled={savingSettings}>
+            {savingSettings ? "Saving…" : "Save"}
+          </button>
+        </div>
+      )}
+
+      <div className="page-head">
+        <h2 style={{ fontSize: 18 }}>Attendance History</h2>
+      </div>
+      {records.length === 0 ? (
+        <div className="empty">No attendance records yet.</div>
+      ) : (
+        <div className="list-grid">
+          {records.map((r) => (
+            <div className="row-card" key={r.id}>
+              <div className="rc-main">
+                <div className="rc-name">
+                  {isOwner ? r.user.name || r.user.email : fmt(r.date)}
+                </div>
+                <div className="rc-meta">
+                  {isOwner && `${fmt(r.date)} · `}
+                  {r.checkInAt ? `In ${fmtDateTime(r.checkInAt)} (${r.checkInLocation})` : "No check-in"}
+                  {r.checkOutAt ? ` · Out ${fmtDateTime(r.checkOutAt)}` : ""}
+                </div>
+              </div>
+              <span
+                className="pill"
+                style={{
+                  background: `${ATTENDANCE_STATUS_COLORS[r.status] || "#6b7280"}22`,
+                  color: ATTENDANCE_STATUS_COLORS[r.status] || "#6b7280",
+                }}
+              >
+                {r.status}
+              </span>
             </div>
           ))}
         </div>
