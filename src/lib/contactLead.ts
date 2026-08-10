@@ -1,6 +1,53 @@
 import { prisma } from "@/lib/prisma";
 
 /**
+ * Creates (or reuses, matched by phone) a Contact + Lead pair for an
+ * inbound lead from an external source (e.g. a Facebook/Instagram lead
+ * ad webhook). Mirrors the dedupe-by-phone logic in POST /api/leads.
+ */
+export async function createLeadFromExternalSource(data: {
+  name: string;
+  phone: string;
+  email?: string | null;
+  interest?: string | null;
+  source: string;
+  notes?: string | null;
+}) {
+  let contactId: string | null = null;
+  const existing = await prisma.contact.findFirst({ where: { phone: data.phone } });
+  if (existing) {
+    contactId = existing.id;
+    if (!existing.types.includes("Buyer")) {
+      await prisma.contact.update({
+        where: { id: existing.id },
+        data: { types: [...existing.types, "Buyer"] },
+      });
+    }
+  } else {
+    const contact = await prisma.contact.create({
+      data: { name: data.name, phone: data.phone, email: data.email || null, types: ["Buyer"] },
+    });
+    await prisma.buyerDetails.create({
+      data: { contactId: contact.id, needs: data.interest || null },
+    });
+    contactId = contact.id;
+  }
+
+  return prisma.lead.create({
+    data: {
+      name: data.name,
+      phone: data.phone,
+      interest: data.interest || null,
+      stage: "Lead",
+      status: "Open",
+      source: data.source,
+      notes: data.notes || null,
+      contactId,
+    },
+  });
+}
+
+/**
  * Ensures a Buyer-type contact has a corresponding Lead in the pipeline.
  * Safe to call whenever a contact's types change — no-ops if a lead
  * already exists for this contact, or if the contact isn't a Buyer.
