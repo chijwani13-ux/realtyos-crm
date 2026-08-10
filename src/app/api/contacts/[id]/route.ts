@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureLeadForBuyerContact } from "@/lib/contactLead";
+import { requireOwner } from "@/lib/permissions";
 
 export async function GET(
   _req: NextRequest,
@@ -17,6 +19,19 @@ export async function GET(
     },
   });
   if (!contact) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const session = await auth();
+  if (session?.user?.role === "Employee") {
+    return NextResponse.json({
+      ...contact,
+      builderDetails: contact.builderDetails
+        ? { ...contact.builderDetails, commissionStructure: null }
+        : null,
+      brokerDetails: contact.brokerDetails
+        ? { ...contact.brokerDetails, commissionSplit: null }
+        : null,
+    });
+  }
   return NextResponse.json(contact);
 }
 
@@ -27,6 +42,8 @@ export async function PUT(
   const { id } = await params;
   const body = await req.json();
   const types: string[] = Array.isArray(body.types) ? body.types : [];
+  const session = await auth();
+  const isEmployee = session?.user?.role === "Employee";
 
   await prisma.contact.update({
     where: { id },
@@ -69,14 +86,16 @@ export async function PUT(
       create: {
         contactId: id,
         projects: body.projects || null,
-        commissionStructure: body.commissionStructure || null,
+        commissionStructure: isEmployee ? null : body.commissionStructure || null,
         lastVisited: body.lastVisited ? new Date(body.lastVisited) : null,
         nextVisit: body.nextVisit ? new Date(body.nextVisit) : null,
         brochureLink: body.brochureLink || null,
       },
       update: {
         projects: body.projects || null,
-        commissionStructure: body.commissionStructure || null,
+        // Employees never see the real commission value (stripped on GET), so never
+        // let their edits overwrite it — only Owners can change it.
+        ...(isEmployee ? {} : { commissionStructure: body.commissionStructure || null }),
         lastVisited: body.lastVisited ? new Date(body.lastVisited) : null,
         nextVisit: body.nextVisit ? new Date(body.nextVisit) : null,
         brochureLink: body.brochureLink || null,
@@ -92,11 +111,11 @@ export async function PUT(
       create: {
         contactId: id,
         agencyName: body.agencyName || null,
-        commissionSplit: body.commissionSplit || null,
+        commissionSplit: isEmployee ? null : body.commissionSplit || null,
       },
       update: {
         agencyName: body.agencyName || null,
-        commissionSplit: body.commissionSplit || null,
+        ...(isEmployee ? {} : { commissionSplit: body.commissionSplit || null }),
       },
     });
   } else {
@@ -118,6 +137,9 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const check = await requireOwner();
+  if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
+
   const { id } = await params;
   await prisma.contact.delete({ where: { id } });
   return NextResponse.json({ ok: true });

@@ -243,7 +243,12 @@ function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
   URL.revokeObjectURL(url);
 }
 
-export default function CrmApp() {
+export default function CrmApp({
+  currentUser,
+}: {
+  currentUser: { name: string | null; email: string; role: string };
+}) {
+  const isOwner = currentUser.role !== "Employee";
   const [leads, setLeads] = useState<Lead[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -406,8 +411,13 @@ export default function CrmApp() {
         setDocs((prev) => prev.filter((x) => x.id !== id));
       },
     };
-    await map[kind]();
-    setConfirmDelete(null);
+    try {
+      await map[kind]();
+      setConfirmDelete(null);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Delete failed");
+      setConfirmDelete(null);
+    }
   }
 
   async function toggleTask(t: Task) {
@@ -554,7 +564,7 @@ export default function CrmApp() {
                 leads={leads}
                 onAdd={() => setModal({ type: "lead", entity: {} })}
                 onEdit={(l) => setModal({ type: "lead", entity: l })}
-                onDelete={(id) => requestDelete("lead", id, leads.find((l) => l.id === id)?.name || "lead")}
+                onDelete={isOwner ? (id) => requestDelete("lead", id, leads.find((l) => l.id === id)?.name || "lead") : undefined}
                 onMoveStage={moveLeadStage}
                 dragId={dragId}
                 setDragId={setDragId}
@@ -570,7 +580,7 @@ export default function CrmApp() {
                     setContactDetail(null);
                   }}
                   onEdit={() => setModal({ type: "contact", entity: contactDetail })}
-                  onDelete={() => requestDelete("contact", contactDetail.id, contactDetail.name)}
+                  onDelete={isOwner ? () => requestDelete("contact", contactDetail.id, contactDetail.name) : undefined}
                   onLogInteraction={() => setModal({ type: "interaction", contactId: contactDetail.id })}
                 />
               ) : (
@@ -582,7 +592,7 @@ export default function CrmApp() {
                   setSearch={setContactSearch}
                   onAdd={() => setModal({ type: "contact", entity: {} })}
                   onOpen={openContact}
-                  onDelete={(id, name) => requestDelete("contact", id, name)}
+                  onDelete={isOwner ? (id, name) => requestDelete("contact", id, name) : undefined}
                 />
               ))}
             {tab === "projects" && (
@@ -590,7 +600,7 @@ export default function CrmApp() {
                 projects={projects}
                 onAdd={() => setModal({ type: "project", entity: {} })}
                 onEdit={(p) => setModal({ type: "project", entity: p })}
-                onDelete={(id) => requestDelete("project", id, projects.find((p) => p.id === id)?.name || "project")}
+                onDelete={isOwner ? (id) => requestDelete("project", id, projects.find((p) => p.id === id)?.name || "project") : undefined}
                 onShare={(p) => setModal({ type: "whatsapp", project: p })}
               />
             )}
@@ -634,7 +644,9 @@ export default function CrmApp() {
                 />
               </>
             )}
-            {tab === "settings" && <SettingsTab showToast={showToast} />}
+            {tab === "settings" && (
+              <SettingsTab showToast={showToast} currentUser={currentUser} isOwner={isOwner} />
+            )}
           </div>
         </div>
       </div>
@@ -666,6 +678,7 @@ export default function CrmApp() {
           modal={modal}
           contacts={contacts}
           projects={projects}
+          isOwner={isOwner}
           onCancel={() => setModal(null)}
           onSaveLead={saveLead}
           onSaveContact={saveContact}
@@ -1003,7 +1016,7 @@ function LeadsTab({
   leads: Lead[];
   onAdd: () => void;
   onEdit: (l: Lead) => void;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
   onMoveStage: (id: string, stage: string) => void;
   dragId: string | null;
   setDragId: (id: string | null) => void;
@@ -1098,9 +1111,11 @@ function LeadsTab({
                 <button className="btn btn-ghost btn-sm" onClick={() => onEdit(l)}>
                   Edit
                 </button>
-                <button className="btn-danger" onClick={() => onDelete(l.id)}>
-                  Delete
-                </button>
+                {onDelete && (
+                  <button className="btn-danger" onClick={() => onDelete(l.id)}>
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -1145,7 +1160,7 @@ function ContactsTab({
   setSearch: (v: string) => void;
   onAdd: () => void;
   onOpen: (id: string) => void;
-  onDelete: (id: string, name: string) => void;
+  onDelete?: (id: string, name: string) => void;
 }) {
   const filtered = useMemo(() => {
     return contacts.filter((c) => {
@@ -1249,9 +1264,11 @@ function ContactsTab({
                     </a>
                   </div>
                 )}
-                <button className="btn-danger" onClick={() => onDelete(c.id, c.name)}>
-                  Delete
-                </button>
+                {onDelete && (
+                  <button className="btn-danger" onClick={() => onDelete(c.id, c.name)}>
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -1271,7 +1288,7 @@ function ContactDetail({
   contact: Contact & { interactions: Interaction[] };
   onBack: () => void;
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   onLogInteraction: () => void;
 }) {
   function exportCsv() {
@@ -1315,9 +1332,11 @@ function ContactDetail({
           <button className="btn btn-ghost btn-sm" onClick={onEdit}>
             Edit
           </button>
-          <button className="btn-danger" onClick={onDelete}>
-            Delete
-          </button>
+          {onDelete && (
+            <button className="btn-danger" onClick={onDelete}>
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -1442,7 +1461,7 @@ function ProjectsTab({
   projects: Project[];
   onAdd: () => void;
   onEdit: (p: Project) => void;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
   onShare: (p: Project) => void;
 }) {
   function exportCsv() {
@@ -1496,9 +1515,11 @@ function ProjectsTab({
                 <button className="btn btn-ghost btn-sm" onClick={() => onEdit(p)}>
                   Edit
                 </button>
-                <button className="btn-danger" onClick={() => onDelete(p.id)}>
-                  Delete
-                </button>
+                {onDelete && (
+                  <button className="btn-danger" onClick={() => onDelete(p.id)}>
+                    Delete
+                  </button>
+                )}
               </div>
               <div className="entity-actions" style={{ marginTop: 6 }}>
                 <button
@@ -1749,20 +1770,95 @@ function DocsTab({
 }
 
 type Profile = { id: string; email: string; name: string | null; role: string; createdAt: string };
+type TeamUser = { id: string; email: string; name: string | null; role: string; createdAt: string };
 
-function SettingsTab({ showToast }: { showToast: (msg: string) => void }) {
+function SettingsTab({
+  showToast,
+  currentUser,
+  isOwner,
+}: {
+  showToast: (msg: string) => void;
+  currentUser: { name: string | null; email: string; role: string };
+  isOwner: boolean;
+}) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserRole, setNewUserRole] = useState<"Owner" | "Employee">("Employee");
+  const [addingUser, setAddingUser] = useState(false);
+
+  function loadTeamUsers() {
+    api<TeamUser[]>("/api/settings/users")
+      .then(setTeamUsers)
+      .catch(() => showToast("Could not load users"));
+  }
+
   useEffect(() => {
     api<Profile>("/api/settings/profile")
       .then(setProfile)
       .catch(() => showToast("Could not load profile"));
+    if (isOwner) loadTeamUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleAddUser() {
+    if (!newUserEmail.trim() || !newUserPassword) {
+      showToast("Email and password required");
+      return;
+    }
+    if (newUserPassword.length < 8) {
+      showToast("Password must be at least 8 characters");
+      return;
+    }
+    setAddingUser(true);
+    try {
+      const res = await fetch("/api/settings/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: newUserEmail.trim(),
+          password: newUserPassword,
+          name: newUserName.trim(),
+          role: newUserRole,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        showToast(json.error || "Could not add user");
+      } else {
+        showToast("User added");
+        setNewUserEmail("");
+        setNewUserName("");
+        setNewUserPassword("");
+        setNewUserRole("Employee");
+        loadTeamUsers();
+      }
+    } catch {
+      showToast("Something went wrong. Try again.");
+    }
+    setAddingUser(false);
+  }
+
+  async function handleDeleteUser(id: string) {
+    try {
+      const res = await fetch(`/api/settings/users/${id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(json.error || "Could not delete user");
+      } else {
+        setTeamUsers((prev) => prev.filter((u) => u.id !== id));
+      }
+    } catch {
+      showToast("Something went wrong. Try again.");
+    }
+  }
 
   async function handleChangePassword() {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -1855,6 +1951,62 @@ function SettingsTab({ showToast }: { showToast: (msg: string) => void }) {
           {saving ? "Saving…" : "Update Password"}
         </button>
       </div>
+
+      {isOwner && (
+        <div className="card" style={{ maxWidth: 520, marginTop: 20 }}>
+          <h3>Team</h3>
+          {teamUsers.length === 0 ? (
+            <div className="empty-sm">Loading…</div>
+          ) : (
+            <div style={{ marginBottom: 16 }}>
+              {teamUsers.map((u) => (
+                <div className="entity-field" key={u.id}>
+                  <span className="l">
+                    {u.name || u.email} <span style={{ opacity: 0.6 }}>· {u.role}</span>
+                  </span>
+                  <span className="v" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {u.email}
+                    {u.email !== currentUser.email && (
+                      <button className="btn-danger" onClick={() => handleDeleteUser(u.id)}>
+                        Remove
+                      </button>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <h3 style={{ marginTop: 0 }}>Add Team Member</h3>
+          <div className="field">
+            <label>Name</label>
+            <input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Email</label>
+            <input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Temporary Password</label>
+            <input
+              type="password"
+              value={newUserPassword}
+              onChange={(e) => setNewUserPassword(e.target.value)}
+              placeholder="At least 8 characters"
+            />
+          </div>
+          <div className="field">
+            <label>Role</label>
+            <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as "Owner" | "Employee")}>
+              <option value="Employee">Employee — can't delete records or see commission</option>
+              <option value="Owner">Owner — full access</option>
+            </select>
+          </div>
+          <button className="btn" onClick={handleAddUser} disabled={addingUser}>
+            {addingUser ? "Adding…" : "Add User"}
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -1863,6 +2015,7 @@ function EntityModal({
   modal,
   contacts,
   projects,
+  isOwner,
   onCancel,
   onSaveLead,
   onSaveContact,
@@ -1875,6 +2028,7 @@ function EntityModal({
   modal: Exclude<ModalState, { type: "whatsapp"; project: Project } | { type: "interaction"; contactId: string }>;
   contacts: Contact[];
   projects: Project[];
+  isOwner: boolean;
   onCancel: () => void;
   onSaveLead: (d: Partial<Lead>) => void;
   onSaveContact: (d: Partial<Contact> & Record<string, unknown>) => void;
@@ -2153,10 +2307,12 @@ function EntityModal({
                   <label>Projects</label>
                   <input value={str("projects")} onChange={(e) => set("projects", e.target.value)} />
                 </div>
-                <div className="field">
-                  <label>Commission Structure</label>
-                  <input value={str("commissionStructure")} onChange={(e) => set("commissionStructure", e.target.value)} />
-                </div>
+                {isOwner && (
+                  <div className="field">
+                    <label>Commission Structure</label>
+                    <input value={str("commissionStructure")} onChange={(e) => set("commissionStructure", e.target.value)} />
+                  </div>
+                )}
                 <div className="field">
                   <label>Last Visited</label>
                   <input
@@ -2182,10 +2338,12 @@ function EntityModal({
                   <label>Agency Name</label>
                   <input value={str("agencyName")} onChange={(e) => set("agencyName", e.target.value)} />
                 </div>
-                <div className="field">
-                  <label>Commission Split</label>
-                  <input value={str("commissionSplit")} onChange={(e) => set("commissionSplit", e.target.value)} />
-                </div>
+                {isOwner && (
+                  <div className="field">
+                    <label>Commission Split</label>
+                    <input value={str("commissionSplit")} onChange={(e) => set("commissionSplit", e.target.value)} />
+                  </div>
+                )}
               </>
             )}
 
@@ -2248,10 +2406,12 @@ function EntityModal({
               <label>Nearby</label>
               <input value={str("nearby")} onChange={(e) => set("nearby", e.target.value)} />
             </div>
-            <div className="field">
-              <label>Commission</label>
-              <input value={str("commission")} onChange={(e) => set("commission", e.target.value)} />
-            </div>
+            {isOwner && (
+              <div className="field">
+                <label>Commission</label>
+                <input value={str("commission")} onChange={(e) => set("commission", e.target.value)} />
+              </div>
+            )}
             <div className="field">
               <label>Notes</label>
               <textarea value={str("notes")} onChange={(e) => set("notes", e.target.value)} />

@@ -1,14 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureLeadForBuyerContact } from "@/lib/contactLead";
 
+function hideCommission<T extends { builderDetails: { commissionStructure: string | null } | null; brokerDetails: { commissionSplit: string | null } | null }>(
+  contact: T
+): T {
+  return {
+    ...contact,
+    builderDetails: contact.builderDetails
+      ? { ...contact.builderDetails, commissionStructure: null }
+      : null,
+    brokerDetails: contact.brokerDetails ? { ...contact.brokerDetails, commissionSplit: null } : null,
+  };
+}
+
 export async function GET(req: NextRequest) {
+  const session = await auth();
   const type = req.nextUrl.searchParams.get("type");
   const contacts = await prisma.contact.findMany({
     where: type ? { types: { has: type } } : undefined,
     include: { buyerDetails: true, builderDetails: true, brokerDetails: true },
     orderBy: { createdAt: "desc" },
   });
+  if (session?.user?.role === "Employee") {
+    return NextResponse.json(contacts.map(hideCommission));
+  }
   return NextResponse.json(contacts);
 }
 

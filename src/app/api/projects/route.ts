@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const session = await auth();
   const projects = await prisma.project.findMany({
     include: { builderContact: true },
     orderBy: { createdAt: "desc" },
   });
+  if (session?.user?.role === "Employee") {
+    return NextResponse.json(projects.map((p) => ({ ...p, commission: null })));
+  }
   return NextResponse.json(projects);
 }
 
