@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 
@@ -12,6 +12,13 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (searchParams.get("outsideHours")) {
+      setError("You've been signed out — it's outside your assigned access hours.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -22,12 +29,16 @@ function LoginForm() {
         password,
         redirect: false,
       });
-      if (res?.ok) {
+      if (res?.error) {
+        if (res.code === "OutsideAccessHours") {
+          setError("You can only sign in during your assigned access hours.");
+        } else {
+          setError("Invalid email or password.");
+        }
+      } else {
         const callbackUrl = searchParams.get("callbackUrl") || "/";
         router.push(callbackUrl);
         router.refresh();
-      } else {
-        setError("Invalid email or password.");
       }
     } catch {
       setError("Something went wrong. Try again.");

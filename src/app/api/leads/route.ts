@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const session = await auth();
+  const isEmployee = session?.user?.role === "Employee";
   const leads = await prisma.lead.findMany({
-    include: { contact: true },
+    where: isEmployee ? { assignedToId: session!.user.id } : undefined,
+    include: { contact: true, assignedTo: { select: { id: true, name: true, email: true } } },
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json(leads);
@@ -11,6 +15,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  const session = await auth();
+  const isEmployee = session?.user?.role === "Employee";
 
   // Auto-create (or reuse) a Contact for this lead so it references contact_id
   // under the hood, matching by phone to avoid duplicate contacts.
@@ -47,8 +53,10 @@ export async function POST(req: NextRequest) {
       source: body.source || null,
       notes: body.notes || null,
       contactId,
+      // Employees always own what they create; only Owners can assign to someone else.
+      assignedToId: isEmployee ? session!.user.id : body.assignedToId || null,
     },
-    include: { contact: true },
+    include: { contact: true, assignedTo: { select: { id: true, name: true, email: true } } },
   });
   return NextResponse.json(lead, { status: 201 });
 }

@@ -16,8 +16,13 @@ model User {
   passwordHash String
   name         String?
   role         String   @default("Owner") // Owner, Employee (for future employee logins)
+  position     String? // free-text job title, e.g. "Sales Executive" (Employee only)
+  accessStart  String? // "HH:MM" 24h, in Asia/Kolkata — Employee login/session allowed from this time
+  accessEnd    String? // "HH:MM" 24h, in Asia/Kolkata — Employee login/session allowed until this time
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  assignedLeads Lead[] @relation("LeadAssignee")
 }
 
 model Lead {
@@ -32,10 +37,13 @@ model Lead {
   notes     String?
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  assignedToId String?
+  assignedTo   User?   @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([contactId])
+  @@index([assignedToId])
 }
 
 // --- Contact-centric model ---

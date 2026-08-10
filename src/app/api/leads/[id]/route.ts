@@ -9,8 +9,13 @@ export async function PUT(
 ) {
   const { id } = await params;
   const body = await req.json();
+  const session = await auth();
+  const isEmployee = session?.user?.role === "Employee";
 
   const existing = await prisma.lead.findUnique({ where: { id } });
+  if (isEmployee && existing?.assignedToId !== session!.user.id) {
+    return NextResponse.json({ error: "Not your assigned lead" }, { status: 403 });
+  }
 
   const lead = await prisma.lead.update({
     where: { id },
@@ -23,11 +28,13 @@ export async function PUT(
       lossReason: body.status === "Lost" ? body.lossReason || null : null,
       source: body.source ?? null,
       notes: body.notes ?? null,
+      // Employees can't reassign leads — only Owners control assignment.
+      ...(isEmployee ? {} : { assignedToId: body.assignedToId || null }),
     },
+    include: { assignedTo: { select: { id: true, name: true, email: true } } },
   });
 
   if (existing && lead.contactId && (existing.stage !== lead.stage || existing.status !== lead.status)) {
-    const session = await auth();
     const createdBy = session?.user?.name || session?.user?.email || "Unknown";
     if (existing.stage !== lead.stage) {
       await prisma.interaction.create({
