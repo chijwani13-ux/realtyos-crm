@@ -12,7 +12,7 @@ export async function PUT(
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
 
   const { id } = await params;
-  const { name, role, position, accessStart, accessEnd } = await req.json();
+  const { name, role, position, accessStart, accessEnd, attendanceEnabled } = await req.json();
 
   if ((accessStart && !TIME_RE.test(accessStart)) || (accessEnd && !TIME_RE.test(accessEnd))) {
     return NextResponse.json({ error: "Access hours must be valid times" }, { status: 400 });
@@ -37,6 +37,7 @@ export async function PUT(
       position: finalRole === "Employee" ? position || null : null,
       accessStart: finalRole === "Employee" ? accessStart || null : null,
       accessEnd: finalRole === "Employee" ? accessEnd || null : null,
+      attendanceEnabled: finalRole === "Employee" ? attendanceEnabled !== false : true,
     },
     select: {
       id: true,
@@ -46,6 +47,7 @@ export async function PUT(
       position: true,
       accessStart: true,
       accessEnd: true,
+      attendanceEnabled: true,
       createdAt: true,
     },
   });

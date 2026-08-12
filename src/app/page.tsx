@@ -9,6 +9,7 @@ export default async function Home() {
         name: session?.user?.name ?? null,
         email: session?.user?.email ?? "",
         role: session?.user?.role ?? "Owner",
+        attendanceEnabled: session?.user?.attendanceEnabled ?? true,
       }}
     />
   );

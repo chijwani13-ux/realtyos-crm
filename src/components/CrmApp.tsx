@@ -250,7 +250,7 @@ function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
 export default function CrmApp({
   currentUser,
 }: {
-  currentUser: { name: string | null; email: string; role: string };
+  currentUser: { name: string | null; email: string; role: string; attendanceEnabled?: boolean };
 }) {
   const isOwner = currentUser.role !== "Employee";
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -1850,7 +1850,7 @@ function TeamTab({
   teamUsers,
   showToast,
 }: {
-  currentUser: { name: string | null; email: string; role: string };
+  currentUser: { name: string | null; email: string; role: string; attendanceEnabled?: boolean };
   isOwner: boolean;
   teamUsers: TeamUser[];
   showToast: (msg: string) => void;
@@ -2028,35 +2028,42 @@ function TeamTab({
         </div>
       </div>
 
-      <div className="card" style={{ maxWidth: 440, marginBottom: 20 }}>
-        <h3>Today's Attendance</h3>
-        {todayRecord?.checkInAt ? (
-          <div style={{ fontSize: 13, marginBottom: 12 }}>
-            Checked in at {fmtDateTime(todayRecord.checkInAt)} ({todayRecord.checkInLocation})
-            {todayRecord.checkOutAt && <> · Checked out at {fmtDateTime(todayRecord.checkOutAt)}</>}
-          </div>
-        ) : (
-          <div className="empty-sm" style={{ marginBottom: 12 }}>
-            Not checked in yet today.
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            className="btn"
-            onClick={handleCheckIn}
-            disabled={busy || !!todayRecord?.checkInAt}
-          >
-            Check In
-          </button>
-          <button
-            className="btn btn-ghost"
-            onClick={handleCheckOut}
-            disabled={busy || !todayRecord?.checkInAt || !!todayRecord?.checkOutAt}
-          >
-            Check Out
-          </button>
+      {currentUser.role === "Employee" && currentUser.attendanceEnabled === false ? (
+        <div className="card" style={{ maxWidth: 440, marginBottom: 20 }}>
+          <h3>Today's Attendance</h3>
+          <div className="empty-sm">Attendance tracking isn't required for your account.</div>
         </div>
-      </div>
+      ) : (
+        <div className="card" style={{ maxWidth: 440, marginBottom: 20 }}>
+          <h3>Today's Attendance</h3>
+          {todayRecord?.checkInAt ? (
+            <div style={{ fontSize: 13, marginBottom: 12 }}>
+              Checked in at {fmtDateTime(todayRecord.checkInAt)} ({todayRecord.checkInLocation})
+              {todayRecord.checkOutAt && <> · Checked out at {fmtDateTime(todayRecord.checkOutAt)}</>}
+            </div>
+          ) : (
+            <div className="empty-sm" style={{ marginBottom: 12 }}>
+              Not checked in yet today.
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="btn"
+              onClick={handleCheckIn}
+              disabled={busy || !!todayRecord?.checkInAt}
+            >
+              Check In
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={handleCheckOut}
+              disabled={busy || !todayRecord?.checkInAt || !!todayRecord?.checkOutAt}
+            >
+              Check Out
+            </button>
+          </div>
+        </div>
+      )}
 
       {isOwner && (
         <div className="card" style={{ maxWidth: 520, marginBottom: 20 }}>
@@ -2185,6 +2192,7 @@ type TeamUser = {
   position: string | null;
   accessStart: string | null;
   accessEnd: string | null;
+  attendanceEnabled: boolean;
   createdAt: string;
 };
 
@@ -2196,7 +2204,7 @@ function SettingsTab({
   loadTeamUsers,
 }: {
   showToast: (msg: string) => void;
-  currentUser: { name: string | null; email: string; role: string };
+  currentUser: { name: string | null; email: string; role: string; attendanceEnabled?: boolean };
   isOwner: boolean;
   teamUsers: TeamUser[];
   loadTeamUsers: () => void;
@@ -2214,6 +2222,7 @@ function SettingsTab({
   const [newUserPosition, setNewUserPosition] = useState("");
   const [newUserAccessStart, setNewUserAccessStart] = useState("");
   const [newUserAccessEnd, setNewUserAccessEnd] = useState("");
+  const [newUserAttendanceEnabled, setNewUserAttendanceEnabled] = useState(true);
   const [addingUser, setAddingUser] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2221,6 +2230,7 @@ function SettingsTab({
   const [editPosition, setEditPosition] = useState("");
   const [editAccessStart, setEditAccessStart] = useState("");
   const [editAccessEnd, setEditAccessEnd] = useState("");
+  const [editAttendanceEnabled, setEditAttendanceEnabled] = useState(true);
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
@@ -2252,6 +2262,7 @@ function SettingsTab({
           position: newUserPosition.trim(),
           accessStart: newUserAccessStart,
           accessEnd: newUserAccessEnd,
+          attendanceEnabled: newUserAttendanceEnabled,
         }),
       });
       const json = await res.json();
@@ -2266,6 +2277,7 @@ function SettingsTab({
         setNewUserPosition("");
         setNewUserAccessStart("");
         setNewUserAccessEnd("");
+        setNewUserAttendanceEnabled(true);
         loadTeamUsers();
       }
     } catch {
@@ -2280,6 +2292,7 @@ function SettingsTab({
     setEditPosition(u.position || "");
     setEditAccessStart(u.accessStart || "");
     setEditAccessEnd(u.accessEnd || "");
+    setEditAttendanceEnabled(u.attendanceEnabled);
   }
 
   async function handleSaveEdit(u: TeamUser) {
@@ -2294,6 +2307,7 @@ function SettingsTab({
           position: editPosition.trim(),
           accessStart: editAccessStart,
           accessEnd: editAccessEnd,
+          attendanceEnabled: editAttendanceEnabled,
         }),
       });
       const json = await res.json();
@@ -2459,6 +2473,16 @@ function SettingsTab({
                             />
                           </div>
                         </div>
+                        <div className="field">
+                          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <input
+                              type="checkbox"
+                              checked={editAttendanceEnabled}
+                              onChange={(e) => setEditAttendanceEnabled(e.target.checked)}
+                            />
+                            Require geo-attendance check-in/out
+                          </label>
+                        </div>
                       </>
                     )}
                     <div style={{ display: "flex", gap: 8 }}>
@@ -2480,6 +2504,9 @@ function SettingsTab({
                           {" "}
                           · {u.accessStart}–{u.accessEnd}
                         </span>
+                      )}
+                      {u.role === "Employee" && !u.attendanceEnabled && (
+                        <span style={{ opacity: 0.6 }}> · Attendance not required</span>
                       )}
                     </span>
                     <span className="v" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -2548,6 +2575,16 @@ function SettingsTab({
                     onChange={(e) => setNewUserAccessEnd(e.target.value)}
                   />
                 </div>
+              </div>
+              <div className="field">
+                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={newUserAttendanceEnabled}
+                    onChange={(e) => setNewUserAttendanceEnabled(e.target.checked)}
+                  />
+                  Require geo-attendance check-in/out
+                </label>
               </div>
             </>
           )}

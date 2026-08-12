@@ -19,6 +19,7 @@ model User {
   position     String? // free-text job title, e.g. "Sales Executive" (Employee only)
   accessStart  String? // "HH:MM" 24h, in Asia/Kolkata — Employee login/session allowed from this time
   accessEnd    String? // "HH:MM" 24h, in Asia/Kolkata — Employee login/session allowed until this time
+  attendanceEnabled Boolean @default(true) // whether geo-attendance check-in/out is required for this Employee
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -16,6 +16,7 @@ export async function GET() {
       position: true,
       accessStart: true,
       accessEnd: true,
+      attendanceEnabled: true,
       createdAt: true,
     },
     orderBy: { createdAt: "asc" },
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
   const check = await requireOwner();
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
 
-  const { email, password, name, role, position, accessStart, accessEnd } = await req.json();
+  const { email, password, name, role, position, accessStart, accessEnd, attendanceEnabled } = await req.json();
   if (!email || !password) {
     return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
   }
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
       position: finalRole === "Employee" ? position || null : null,
       accessStart: finalRole === "Employee" ? accessStart || null : null,
       accessEnd: finalRole === "Employee" ? accessEnd || null : null,
+      attendanceEnabled: finalRole === "Employee" ? attendanceEnabled !== false : true,
     },
     select: {
       id: true,
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
       position: true,
       accessStart: true,
       accessEnd: true,
+      attendanceEnabled: true,
       createdAt: true,
     },
   });

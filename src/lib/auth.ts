@@ -17,12 +17,14 @@ declare module "next-auth" {
       role: string;
       accessStart?: string | null;
       accessEnd?: string | null;
+      attendanceEnabled?: boolean;
     };
   }
   interface User {
     role?: string;
     accessStart?: string | null;
     accessEnd?: string | null;
+    attendanceEnabled?: boolean;
   }
 }
 
@@ -60,6 +62,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: user.role,
           accessStart: user.accessStart,
           accessEnd: user.accessEnd,
+          attendanceEnabled: user.attendanceEnabled,
         };
       },
     }),
@@ -70,6 +73,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = user.role;
         token.accessStart = user.accessStart;
         token.accessEnd = user.accessEnd;
+        token.attendanceEnabled = user.attendanceEnabled;
       }
       return token;
     },
@@ -79,6 +83,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.sub as string;
         session.user.accessStart = (token.accessStart as string | null) ?? null;
         session.user.accessEnd = (token.accessEnd as string | null) ?? null;
+        session.user.attendanceEnabled = (token.attendanceEnabled as boolean) ?? true;
       }
       return session;
     },
