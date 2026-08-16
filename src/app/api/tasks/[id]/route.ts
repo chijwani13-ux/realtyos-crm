@@ -11,8 +11,9 @@ export async function PUT(
     where: { id },
     data: {
       title: body.title,
-      dueDate: body.dueDate,
-      done: body.done,
+      dueDate: body.dueDate ? new Date(body.dueDate) : null,
+      contactId: body.contactId ?? undefined,
+      status: body.status,
     },
   });
   return NextResponse.json(task);

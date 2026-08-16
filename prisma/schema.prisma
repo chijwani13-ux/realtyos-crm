@@ -106,6 +106,7 @@ model Contact {
   brokerDetails   BrokerDetails?
   interactions    Interaction[]
   leads           Lead[]
+  tasks           Task[]
   builderProjects Project[] @relation("ProjectBuilder")
 }
 
@@ -212,11 +213,15 @@ model Event {
 }
 
 model Task {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   title     String
-  dueDate   String?
-  done      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  dueDate   DateTime?
+  status    String    @default("pending") // pending, done, snoozed
+  contactId String?
+  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  createdAt DateTime  @default(now())
+
+  @@index([contactId])
 }
 
 model Note {

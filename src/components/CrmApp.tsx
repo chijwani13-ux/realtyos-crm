@@ -141,7 +141,8 @@ type Task = {
   id: string;
   title: string;
   dueDate: string | null;
-  done: boolean;
+  status: string; // pending, done, snoozed
+  contactId: string | null;
 };
 type DocumentItem = {
   id: string;
@@ -178,8 +179,22 @@ function esc(s: string | null | undefined) {
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
+// Extracts the yyyy-mm-dd portion from either a plain date string or a full
+// ISO datetime string, so DateTime fields (e.g. Task.dueDate, nextFollowUp,
+// nextVisit) can be compared against todayStr() consistently.
+function dateOnlyStr(d: string | null | undefined) {
+  return d ? d.slice(0, 10) : null;
+}
 function isToday(d: string | null) {
-  return d === todayStr();
+  return dateOnlyStr(d) === todayStr();
+}
+function isOverdue(d: string | null) {
+  const day = dateOnlyStr(d);
+  return !!day && day < todayStr();
+}
+function isUpcoming(d: string | null) {
+  const day = dateOnlyStr(d);
+  return !!day && day > todayStr();
 }
 function fmt(d: string | null) {
   if (!d) return "";
@@ -439,7 +454,15 @@ export default function CrmApp({
   async function toggleTask(t: Task) {
     const updated = await api<Task>(`/api/tasks/${t.id}`, {
       method: "PUT",
-      body: JSON.stringify({ ...t, done: !t.done }),
+      body: JSON.stringify({ ...t, status: t.status === "done" ? "pending" : "done" }),
+    });
+    setTasks((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+  }
+
+  async function snoozeTask(t: Task) {
+    const updated = await api<Task>(`/api/tasks/${t.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ ...t, status: t.status === "snoozed" ? "pending" : "snoozed" }),
     });
     setTasks((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
   }
@@ -493,14 +516,25 @@ export default function CrmApp({
     );
   }
 
-  const todaysTasks = tasks.filter((t) => t.dueDate === todayStr() && !t.done);
-  const todaysFollowups = contacts.filter((c) => c.buyerDetails && isToday(c.buyerDetails.nextFollowUp));
+  const pendingTasks = tasks.filter((t) => t.status === "pending");
+  const overdueTasks = pendingTasks.filter((t) => isOverdue(t.dueDate));
+  const todaysTasks = pendingTasks.filter((t) => isToday(t.dueDate));
+  const upcomingTasks = pendingTasks.filter((t) => isUpcoming(t.dueDate));
+
+  const buyerContacts = contacts.filter((c) => c.buyerDetails);
+  const overdueFollowups = buyerContacts.filter((c) => isOverdue(c.buyerDetails!.nextFollowUp));
+  const todaysFollowups = buyerContacts.filter((c) => isToday(c.buyerDetails!.nextFollowUp));
+  const upcomingFollowups = buyerContacts.filter((c) => isUpcoming(c.buyerDetails!.nextFollowUp));
+
+  const builderContacts = contacts.filter((c) => c.builderDetails?.nextVisit);
+  const overdueVisits = builderContacts.filter((c) => isOverdue(c.builderDetails!.nextVisit));
+  const todaysVisitsToBuilders = builderContacts.filter((c) => isToday(c.builderDetails!.nextVisit));
+  const upcomingVisits = builderContacts.filter((c) => isUpcoming(c.builderDetails!.nextVisit));
+  const buildersToVisit = [...overdueVisits, ...todaysVisitsToBuilders];
+
   const todaysVisits = events.filter((e) => e.date === todayStr() && e.type === "Site Visit");
   const todaysMeetings = events.filter(
     (e) => e.date === todayStr() && (e.type === "Meeting" || e.type === "Builder Meeting")
-  );
-  const buildersToVisit = contacts.filter(
-    (c) => c.builderDetails?.nextVisit && c.builderDetails.nextVisit <= todayStr()
   );
   const recentLeads = [...leads].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
 
@@ -551,11 +585,16 @@ export default function CrmApp({
           <div className="content">
             {tab === "dashboard" && (
               <Dashboard
+                overdueTasks={overdueTasks}
                 todaysTasks={todaysTasks}
+                upcomingTasks={upcomingTasks}
+                overdueFollowups={overdueFollowups}
                 todaysFollowups={todaysFollowups}
+                upcomingFollowups={upcomingFollowups}
                 todaysVisits={todaysVisits}
                 todaysMeetings={todaysMeetings}
                 buildersToVisit={buildersToVisit}
+                upcomingVisits={upcomingVisits}
                 recentLeads={recentLeads}
                 docs={docs}
                 leads={leads}
@@ -600,6 +639,7 @@ export default function CrmApp({
                   onEdit={() => setModal({ type: "contact", entity: contactDetail })}
                   onDelete={isOwner ? () => requestDelete("contact", contactDetail.id, contactDetail.name) : undefined}
                   onLogInteraction={() => setModal({ type: "interaction", contactId: contactDetail.id })}
+                  onAddTask={() => setModal({ type: "task", entity: { contactId: contactDetail.id } })}
                 />
               ) : (
                 <ContactsTab
@@ -635,6 +675,7 @@ export default function CrmApp({
                 tasks={tasks}
                 onAdd={() => setModal({ type: "task", entity: {} })}
                 onToggle={toggleTask}
+                onSnooze={snoozeTask}
                 onDelete={(id) => requestDelete("task", id, tasks.find((t) => t.id === id)?.title || "task")}
               />
             )}
@@ -806,11 +847,16 @@ function Pipeline({
 }
 
 function Dashboard(props: {
+  overdueTasks: Task[];
   todaysTasks: Task[];
+  upcomingTasks: Task[];
+  overdueFollowups: Contact[];
   todaysFollowups: Contact[];
+  upcomingFollowups: Contact[];
   todaysVisits: EventItem[];
   todaysMeetings: EventItem[];
   buildersToVisit: Contact[];
+  upcomingVisits: Contact[];
   recentLeads: Lead[];
   docs: DocumentItem[];
   leads: Lead[];
@@ -859,40 +905,104 @@ function Dashboard(props: {
           {props.buildersToVisit.map((c) => (
             <div key={c.id} className="item-row clickable" onClick={() => props.onOpenContact(c.id)}>
               <span className="item-title">{c.name}</span>
-              <span className="item-sub">{esc(c.builderDetails?.projects)}</span>
+              <span className="item-sub">
+                {esc(c.builderDetails?.projects)}
+                {isOverdue(c.builderDetails?.nextVisit ?? null) && " · Overdue"}
+              </span>
             </div>
           ))}
+          {props.upcomingVisits.length > 0 && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12.5, color: "var(--ink-faint)" }}>
+                {props.upcomingVisits.length} upcoming
+              </summary>
+              {props.upcomingVisits.map((c) => (
+                <div key={c.id} className="item-row clickable" onClick={() => props.onOpenContact(c.id)}>
+                  <span className="item-title">{c.name}</span>
+                  <span className="item-sub">{fmt(c.builderDetails?.nextVisit ?? null)}</span>
+                </div>
+              ))}
+            </details>
+          )}
         </div>
       )}
 
       <div className="grid3" style={{ marginBottom: 16 }}>
         <div className="card">
           <h3>
-            Today&apos;s Tasks <span className="count">{props.todaysTasks.length}</span>
+            Tasks{" "}
+            <span className="count">{props.overdueTasks.length + props.todaysTasks.length}</span>
           </h3>
-          {props.todaysTasks.length === 0 ? (
+          {props.overdueTasks.length === 0 && props.todaysTasks.length === 0 ? (
             <div className="empty-sm">Nothing due today.</div>
           ) : (
-            props.todaysTasks.map((t) => (
-              <div key={t.id} className="item-row">
-                <span className="item-title">{t.title}</span>
-              </div>
-            ))
+            <>
+              {props.overdueTasks.map((t) => (
+                <div key={t.id} className="item-row">
+                  <span className="item-title">{t.title}</span>
+                  <span className="item-sub" style={{ color: "#ef4444" }}>
+                    Overdue · {fmt(t.dueDate)}
+                  </span>
+                </div>
+              ))}
+              {props.todaysTasks.map((t) => (
+                <div key={t.id} className="item-row">
+                  <span className="item-title">{t.title}</span>
+                </div>
+              ))}
+            </>
+          )}
+          {props.upcomingTasks.length > 0 && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12.5, color: "var(--ink-faint)" }}>
+                {props.upcomingTasks.length} upcoming
+              </summary>
+              {props.upcomingTasks.map((t) => (
+                <div key={t.id} className="item-row">
+                  <span className="item-title">{t.title}</span>
+                  <span className="item-sub">{fmt(t.dueDate)}</span>
+                </div>
+              ))}
+            </details>
           )}
         </div>
         <div className="card">
           <h3>
-            Today&apos;s Follow-ups <span className="count">{props.todaysFollowups.length}</span>
+            Follow-ups{" "}
+            <span className="count">{props.overdueFollowups.length + props.todaysFollowups.length}</span>
           </h3>
-          {props.todaysFollowups.length === 0 ? (
+          {props.overdueFollowups.length === 0 && props.todaysFollowups.length === 0 ? (
             <div className="empty-sm">No follow-ups today.</div>
           ) : (
-            props.todaysFollowups.map((c) => (
-              <div key={c.id} className="item-row clickable" onClick={() => props.onOpenContact(c.id)}>
-                <span className="item-title">{c.name}</span>
-                <span className="item-sub">{esc(c.buyerDetails?.needs)}</span>
-              </div>
-            ))
+            <>
+              {props.overdueFollowups.map((c) => (
+                <div key={c.id} className="item-row clickable" onClick={() => props.onOpenContact(c.id)}>
+                  <span className="item-title">{c.name}</span>
+                  <span className="item-sub" style={{ color: "#ef4444" }}>
+                    Overdue · {esc(c.buyerDetails?.needs)}
+                  </span>
+                </div>
+              ))}
+              {props.todaysFollowups.map((c) => (
+                <div key={c.id} className="item-row clickable" onClick={() => props.onOpenContact(c.id)}>
+                  <span className="item-title">{c.name}</span>
+                  <span className="item-sub">{esc(c.buyerDetails?.needs)}</span>
+                </div>
+              ))}
+            </>
+          )}
+          {props.upcomingFollowups.length > 0 && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12.5, color: "var(--ink-faint)" }}>
+                {props.upcomingFollowups.length} upcoming
+              </summary>
+              {props.upcomingFollowups.map((c) => (
+                <div key={c.id} className="item-row clickable" onClick={() => props.onOpenContact(c.id)}>
+                  <span className="item-title">{c.name}</span>
+                  <span className="item-sub">{fmt(c.buyerDetails?.nextFollowUp ?? null)}</span>
+                </div>
+              ))}
+            </details>
           )}
         </div>
         <div className="card">
@@ -1316,12 +1426,14 @@ function ContactDetail({
   onEdit,
   onDelete,
   onLogInteraction,
+  onAddTask,
 }: {
   contact: Contact & { interactions: Interaction[] };
   onBack: () => void;
   onEdit: () => void;
   onDelete?: () => void;
   onLogInteraction: () => void;
+  onAddTask: () => void;
 }) {
   function exportCsv() {
     downloadCsv(
@@ -1361,6 +1473,9 @@ function ContactDetail({
               </a>
             </>
           )}
+          <button className="btn btn-ghost btn-sm" onClick={onAddTask}>
+            + Add Task
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={onEdit}>
             Edit
           </button>
@@ -1717,14 +1832,16 @@ function TasksTab({
   tasks,
   onAdd,
   onToggle,
+  onSnooze,
   onDelete,
 }: {
   tasks: Task[];
   onAdd: () => void;
   onToggle: (t: Task) => void;
+  onSnooze: (t: Task) => void;
   onDelete: (id: string) => void;
 }) {
-  const sorted = [...tasks].sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
+  const sorted = [...tasks].sort((a, b) => (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0));
   return (
     <>
       <div className="page-head">
@@ -1740,10 +1857,16 @@ function TasksTab({
       ) : (
         <div className="list-grid">
           {sorted.map((t) => (
-            <div className={`task-row ${t.done ? "done" : ""}`} key={t.id}>
-              <div className={`task-check ${t.done ? "checked" : ""}`} onClick={() => onToggle(t)} />
+            <div className={`task-row ${t.status === "done" ? "done" : ""}`} key={t.id}>
+              <div className={`task-check ${t.status === "done" ? "checked" : ""}`} onClick={() => onToggle(t)} />
               <div className="task-title">{t.title}</div>
-              <div className="task-due">{fmt(t.dueDate)}</div>
+              <div className="task-due" style={{ color: isOverdue(t.dueDate) && t.status === "pending" ? "#ef4444" : undefined }}>
+                {fmt(t.dueDate)}
+                {t.status === "snoozed" ? " · Snoozed" : ""}
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => onSnooze(t)}>
+                {t.status === "snoozed" ? "Unsnooze" : "Snooze"}
+              </button>
               <button className="btn-danger" onClick={() => onDelete(t.id)}>
                 ✕
               </button>
@@ -2759,7 +2882,11 @@ function EntityModal({
         showToast("Title required");
         return;
       }
-      onSaveTask({ title: str("title"), dueDate: str("dueDate") || todayStr() });
+      onSaveTask({
+        title: str("title"),
+        dueDate: str("dueDate") || todayStr(),
+        contactId: (modal.entity as Partial<Task>).contactId ?? null,
+      });
     } else if (modal.type === "doc") {
       if (!str("name").trim() || !str("link").trim()) {
         showToast("Name and link required");
@@ -3067,7 +3194,11 @@ function EntityModal({
             </div>
             <div className="field">
               <label>Due Date</label>
-              <input type="date" value={str("dueDate") || todayStr()} onChange={(e) => set("dueDate", e.target.value)} />
+              <input
+                type="date"
+                value={str("dueDate").slice(0, 10) || todayStr()}
+                onChange={(e) => set("dueDate", e.target.value)}
+              />
             </div>
           </>
         )}

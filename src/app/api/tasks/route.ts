@@ -11,8 +11,9 @@ export async function POST(req: NextRequest) {
   const task = await prisma.task.create({
     data: {
       title: body.title,
-      dueDate: body.dueDate || null,
-      done: false,
+      dueDate: body.dueDate ? new Date(body.dueDate) : null,
+      contactId: body.contactId || null,
+      status: "pending",
     },
   });
   return NextResponse.json(task, { status: 201 });
