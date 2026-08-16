@@ -2733,6 +2733,7 @@ type TeamUser = {
   accessStart: string | null;
   accessEnd: string | null;
   attendanceEnabled: boolean;
+  availableForLeads: boolean;
   createdAt: string;
 };
 
@@ -2763,6 +2764,7 @@ function SettingsTab({
   const [newUserAccessStart, setNewUserAccessStart] = useState("");
   const [newUserAccessEnd, setNewUserAccessEnd] = useState("");
   const [newUserAttendanceEnabled, setNewUserAttendanceEnabled] = useState(true);
+  const [newUserAvailableForLeads, setNewUserAvailableForLeads] = useState(true);
   const [addingUser, setAddingUser] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2771,14 +2773,44 @@ function SettingsTab({
   const [editAccessStart, setEditAccessStart] = useState("");
   const [editAccessEnd, setEditAccessEnd] = useState("");
   const [editAttendanceEnabled, setEditAttendanceEnabled] = useState(true);
+  const [editAvailableForLeads, setEditAvailableForLeads] = useState(true);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const [assignmentMethod, setAssignmentMethod] = useState<"manual" | "round_robin" | "least_busy">("manual");
+  const [savingAssignment, setSavingAssignment] = useState(false);
 
   useEffect(() => {
     api<Profile>("/api/settings/profile")
       .then(setProfile)
       .catch(() => showToast("Could not load profile"));
+    if (isOwner) {
+      api<{ method: string }>("/api/settings/lead-assignment")
+        .then((s) => setAssignmentMethod(s.method as "manual" | "round_robin" | "least_busy"))
+        .catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleSaveAssignmentMethod(method: "manual" | "round_robin" | "least_busy") {
+    setSavingAssignment(true);
+    try {
+      const res = await fetch("/api/settings/lead-assignment", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        showToast(json.error || "Could not save");
+      } else {
+        setAssignmentMethod(method);
+        showToast("Assignment method updated");
+      }
+    } catch {
+      showToast("Something went wrong. Try again.");
+    }
+    setSavingAssignment(false);
+  }
 
   async function handleAddUser() {
     if (!newUserEmail.trim() || !newUserPassword) {
@@ -2803,6 +2835,7 @@ function SettingsTab({
           accessStart: newUserAccessStart,
           accessEnd: newUserAccessEnd,
           attendanceEnabled: newUserAttendanceEnabled,
+          availableForLeads: newUserAvailableForLeads,
         }),
       });
       const json = await res.json();
@@ -2818,6 +2851,7 @@ function SettingsTab({
         setNewUserAccessStart("");
         setNewUserAccessEnd("");
         setNewUserAttendanceEnabled(true);
+        setNewUserAvailableForLeads(true);
         loadTeamUsers();
       }
     } catch {
@@ -2833,6 +2867,7 @@ function SettingsTab({
     setEditAccessStart(u.accessStart || "");
     setEditAccessEnd(u.accessEnd || "");
     setEditAttendanceEnabled(u.attendanceEnabled);
+    setEditAvailableForLeads(u.availableForLeads);
   }
 
   async function handleSaveEdit(u: TeamUser) {
@@ -2848,6 +2883,7 @@ function SettingsTab({
           accessStart: editAccessStart,
           accessEnd: editAccessEnd,
           attendanceEnabled: editAttendanceEnabled,
+          availableForLeads: editAvailableForLeads,
         }),
       });
       const json = await res.json();
@@ -3023,6 +3059,16 @@ function SettingsTab({
                             Require geo-attendance check-in/out
                           </label>
                         </div>
+                        <div className="field">
+                          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <input
+                              type="checkbox"
+                              checked={editAvailableForLeads}
+                              onChange={(e) => setEditAvailableForLeads(e.target.checked)}
+                            />
+                            Available for new lead assignment
+                          </label>
+                        </div>
                       </>
                     )}
                     <div style={{ display: "flex", gap: 8 }}>
@@ -3047,6 +3093,9 @@ function SettingsTab({
                       )}
                       {u.role === "Employee" && !u.attendanceEnabled && (
                         <span style={{ opacity: 0.6 }}> · Attendance not required</span>
+                      )}
+                      {u.role === "Employee" && !u.availableForLeads && (
+                        <span style={{ opacity: 0.6, color: "#ef4444" }}> · Unavailable for leads</span>
                       )}
                     </span>
                     <span className="v" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -3126,11 +3175,44 @@ function SettingsTab({
                   Require geo-attendance check-in/out
                 </label>
               </div>
+              <div className="field">
+                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={newUserAvailableForLeads}
+                    onChange={(e) => setNewUserAvailableForLeads(e.target.checked)}
+                  />
+                  Available for new lead assignment
+                </label>
+              </div>
             </>
           )}
           <button className="btn" onClick={handleAddUser} disabled={addingUser}>
             {addingUser ? "Adding…" : "Add User"}
           </button>
+        </div>
+      )}
+
+      {isOwner && (
+        <div className="card" style={{ maxWidth: 440, marginTop: 20 }}>
+          <h3>Lead Assignment</h3>
+          <div className="field">
+            <label>New leads are assigned</label>
+            <select
+              value={assignmentMethod}
+              onChange={(e) => handleSaveAssignmentMethod(e.target.value as "manual" | "round_robin" | "least_busy")}
+              disabled={savingAssignment}
+            >
+              <option value="manual">Manually — Owner picks each time</option>
+              <option value="round_robin">Round robin — cycles through available employees</option>
+              <option value="least_busy">Least busy — whoever has the fewest open leads</option>
+            </select>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>
+            Applies to new leads only — manual creation, Buyer contacts, and the Facebook/Instagram
+            webhook. Toggle an employee&apos;s &quot;Available for new lead assignment&quot; off above
+            (e.g. while they&apos;re on leave) to skip them, without touching their existing leads.
+          </div>
         </div>
       )}
     </>

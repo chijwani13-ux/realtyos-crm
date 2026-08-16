@@ -20,6 +20,7 @@ model User {
   accessStart  String? // "HH:MM" 24h, in Asia/Kolkata — Employee login/session allowed from this time
   accessEnd    String? // "HH:MM" 24h, in Asia/Kolkata — Employee login/session allowed until this time
   attendanceEnabled Boolean @default(true) // whether geo-attendance check-in/out is required for this Employee
+  availableForLeads Boolean @default(true) // off = skip this Employee in auto-assignment (e.g. on leave)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -65,6 +66,12 @@ model AttendanceSettings {
   id            String @id @default("default")
   fullDayHours  Float  @default(8)
   halfDayHours  Float  @default(4)
+}
+
+model LeadAssignmentSettings {
+  id                 String  @id @default("default")
+  method             String  @default("manual") // manual, round_robin, least_busy
+  lastAssignedUserId String? // round-robin cursor
 }
 
 model Lead {

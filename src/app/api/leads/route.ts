@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stageRequiresBudget } from "@/lib/leadStages";
+import { autoAssignLead } from "@/lib/leadAssignment";
 
 export async function GET() {
   const session = await auth();
@@ -63,6 +64,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Employees always own what they create; Owners either pick someone
+  // explicitly or fall back to the configured auto-assignment rule.
+  const assignedToId = isEmployee
+    ? session!.user.id
+    : body.assignedToId || (await autoAssignLead());
+
   const lead = await prisma.lead.create({
     data: {
       name: body.name,
@@ -77,8 +84,7 @@ export async function POST(req: NextRequest) {
       source: body.source || null,
       notes: body.notes || null,
       contactId,
-      // Employees always own what they create; only Owners can assign to someone else.
-      assignedToId: isEmployee ? session!.user.id : body.assignedToId || null,
+      assignedToId,
     },
     include: { contact: true, assignedTo: { select: { id: true, name: true, email: true } } },
   });

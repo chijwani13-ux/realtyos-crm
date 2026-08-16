@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { autoAssignLead } from "@/lib/leadAssignment";
 
 /**
  * Creates (or reuses, matched by phone) a Contact + Lead pair for an
@@ -50,6 +51,7 @@ export async function createLeadFromExternalSource(data: {
     return activeLead;
   }
 
+  const assignedToId = await autoAssignLead();
   return prisma.lead.create({
     data: {
       name: data.name,
@@ -60,6 +62,7 @@ export async function createLeadFromExternalSource(data: {
       source: data.source,
       notes: data.notes || null,
       contactId,
+      assignedToId,
     },
   });
 }
@@ -79,6 +82,7 @@ export async function ensureLeadForBuyerContact(contactId: string) {
   const existingLead = await prisma.lead.findFirst({ where: { contactId } });
   if (existingLead) return;
 
+  const assignedToId = await autoAssignLead();
   await prisma.lead.create({
     data: {
       name: contact.name,
@@ -87,6 +91,7 @@ export async function ensureLeadForBuyerContact(contactId: string) {
       stage: "Lead",
       status: "Open",
       contactId,
+      assignedToId,
     },
   });
 }
