@@ -109,6 +109,7 @@ type Contact = {
   brokerDetails: BrokerDetails | null;
   vendorDetails: VendorDetails | null;
   sellerDetails: SellerDetails | null;
+  leads?: Lead[];
 };
 type Interaction = {
   id: string;
@@ -305,6 +306,9 @@ export default function CrmApp({
   const [contactTypeFilter, setContactTypeFilter] = useState<string>("");
   const [contactSearch, setContactSearch] = useState("");
 
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [leadDetail, setLeadDetail] = useState<(Lead & { contact: (Contact & { interactions: Interaction[] }) | null }) | null>(null);
+
   const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiInput, setAiInput] = useState("");
@@ -348,11 +352,26 @@ export default function CrmApp({
     loadContactDetail(id);
   }
 
+  async function loadLeadDetail(id: string) {
+    const full = await api<Lead & { contact: (Contact & { interactions: Interaction[] }) | null }>(
+      `/api/leads/${id}`
+    );
+    setLeadDetail(full);
+  }
+
+  function openLead(id: string) {
+    setTab("leads");
+    setSelectedLeadId(id);
+    loadLeadDetail(id);
+  }
+
   // ---- CRUD helpers ----
   async function saveLead(data: Partial<Lead>) {
     if (data.id) {
       const updated = await api<Lead>(`/api/leads/${data.id}`, { method: "PUT", body: JSON.stringify(data) });
       setLeads((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      if (selectedLeadId === updated.id) loadLeadDetail(updated.id);
+      if (selectedContactId && updated.contactId === selectedContactId) loadContactDetail(selectedContactId);
     } else {
       const created = await api<Lead & { duplicate?: boolean }>("/api/leads", {
         method: "POST",
@@ -436,6 +455,7 @@ export default function CrmApp({
       body: JSON.stringify({ type, content }),
     });
     if (selectedContactId === contactId) loadContactDetail(contactId);
+    if (selectedLeadId && leadDetail?.contactId === contactId) loadLeadDetail(selectedLeadId);
   }
 
   function requestDelete(kind: string, id: string, label: string) {
@@ -658,19 +678,37 @@ export default function CrmApp({
                 aiMessagesRef={aiMessagesRef}
               />
             )}
-            {tab === "leads" && (
-              <LeadsTab
-                leads={leads}
-                isOwner={isOwner}
-                onAdd={() => setModal({ type: "lead", entity: {} })}
-                onEdit={(l) => setModal({ type: "lead", entity: l })}
-                onDelete={isOwner ? (id) => requestDelete("lead", id, leads.find((l) => l.id === id)?.name || "lead") : undefined}
-                onMoveStage={moveLeadStage}
-                dragId={dragId}
-                setDragId={setDragId}
-                onOpenContact={openContact}
-              />
-            )}
+            {tab === "leads" &&
+              (selectedLeadId && leadDetail ? (
+                <LeadDetail
+                  lead={leadDetail}
+                  onBack={() => {
+                    setSelectedLeadId(null);
+                    setLeadDetail(null);
+                  }}
+                  onEdit={() => setModal({ type: "lead", entity: leadDetail })}
+                  onDelete={isOwner ? () => requestDelete("lead", leadDetail.id, leadDetail.name) : undefined}
+                  onLogInteraction={() =>
+                    leadDetail.contactId && setModal({ type: "interaction", contactId: leadDetail.contactId })
+                  }
+                  onAddTask={() =>
+                    setModal({ type: "task", entity: { contactId: leadDetail.contactId } })
+                  }
+                  onOpenContact={openContact}
+                />
+              ) : (
+                <LeadsTab
+                  leads={leads}
+                  isOwner={isOwner}
+                  onAdd={() => setModal({ type: "lead", entity: {} })}
+                  onEdit={(l) => setModal({ type: "lead", entity: l })}
+                  onDelete={isOwner ? (id) => requestDelete("lead", id, leads.find((l) => l.id === id)?.name || "lead") : undefined}
+                  onMoveStage={moveLeadStage}
+                  dragId={dragId}
+                  setDragId={setDragId}
+                  onOpenLead={openLead}
+                />
+              ))}
             {tab === "contacts" &&
               (selectedContactId && contactDetail ? (
                 <ContactDetail
@@ -684,6 +722,7 @@ export default function CrmApp({
                   onLogInteraction={() => setModal({ type: "interaction", contactId: contactDetail.id })}
                   onAddTask={() => setModal({ type: "task", entity: { contactId: contactDetail.id } })}
                   onSetDeadLeadRecheck={() => setDeadLeadRecheck(contactDetail.id, contactDetail.name)}
+                  onOpenLead={openLead}
                 />
               ) : (
                 <ContactsTab
@@ -831,11 +870,13 @@ function Pipeline({
   onMoveStage,
   dragId,
   setDragId,
+  onOpenLead,
 }: {
   leads: Lead[];
   onMoveStage: (id: string, stage: string) => void;
   dragId: string | null;
   setDragId: (id: string | null) => void;
+  onOpenLead: (id: string) => void;
 }) {
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const openLeads = leads.filter((l) => l.status === "Open" || l.status === "On Hold");
@@ -868,9 +909,11 @@ function Pipeline({
                 <div
                   key={l.id}
                   className="pcard"
+                  style={{ cursor: "pointer" }}
                   draggable
                   onDragStart={() => setDragId(l.id)}
                   onDragEnd={() => setDragId(null)}
+                  onClick={() => onOpenLead(l.id)}
                 >
                   <strong>{l.name}</strong>
                   <br />
@@ -1122,7 +1165,7 @@ function Dashboard(props: {
       <div className="page-head">
         <h2 style={{ fontSize: 18 }}>Pipeline</h2>
       </div>
-      <Pipeline leads={props.leads} onMoveStage={props.onMoveStage} dragId={props.dragId} setDragId={props.setDragId} />
+      <Pipeline leads={props.leads} onMoveStage={props.onMoveStage} dragId={props.dragId} setDragId={props.setDragId} onOpenLead={props.onOpenLead} />
 
       <div style={{ marginTop: 24 }}>
         <div className="page-head">
@@ -1195,7 +1238,7 @@ function LeadsTab({
   onMoveStage,
   dragId,
   setDragId,
-  onOpenContact,
+  onOpenLead,
 }: {
   leads: Lead[];
   isOwner: boolean;
@@ -1205,7 +1248,7 @@ function LeadsTab({
   onMoveStage: (id: string, stage: string) => void;
   dragId: string | null;
   setDragId: (id: string | null) => void;
-  onOpenContact: (id: string) => void;
+  onOpenLead: (id: string) => void;
 }) {
   const [statusFilter, setStatusFilter] = useState<string>("All");
   function exportCsv() {
@@ -1261,7 +1304,7 @@ function LeadsTab({
           </button>
         </div>
       </div>
-      <Pipeline leads={leads} onMoveStage={onMoveStage} dragId={dragId} setDragId={setDragId} />
+      <Pipeline leads={leads} onMoveStage={onMoveStage} dragId={dragId} setDragId={setDragId} onOpenLead={onOpenLead} />
       <div style={{ height: 20 }} />
       <div className="chip-row" style={{ marginBottom: 14 }}>
         <button
@@ -1289,8 +1332,8 @@ function LeadsTab({
               <div className="rc-main">
                 <div
                   className="rc-name"
-                  style={l.contactId ? { cursor: "pointer", color: "#4f46e5" } : {}}
-                  onClick={() => l.contactId && onOpenContact(l.contactId)}
+                  style={{ cursor: "pointer", color: "#4f46e5" }}
+                  onClick={() => onOpenLead(l.id)}
                 >
                   {l.name}
                 </div>
@@ -1489,6 +1532,7 @@ function ContactDetail({
   onLogInteraction,
   onAddTask,
   onSetDeadLeadRecheck,
+  onOpenLead,
 }: {
   contact: Contact & { interactions: Interaction[] };
   onBack: () => void;
@@ -1497,6 +1541,7 @@ function ContactDetail({
   onLogInteraction: () => void;
   onAddTask: () => void;
   onSetDeadLeadRecheck: () => void;
+  onOpenLead: (id: string) => void;
 }) {
   function exportCsv() {
     downloadCsv(
@@ -1602,6 +1647,45 @@ function ContactDetail({
 
       <div className="page-head">
         <div>
+          <h2 style={{ fontSize: 18 }}>Leads</h2>
+        </div>
+      </div>
+      {!contact.leads || contact.leads.length === 0 ? (
+        <div className="empty-sm" style={{ marginBottom: 20 }}>
+          No leads for this contact yet.
+        </div>
+      ) : (
+        <div className="list-grid" style={{ marginBottom: 20 }}>
+          {contact.leads.map((l) => (
+            <div
+              className="row-card"
+              key={l.id}
+              style={{ cursor: "pointer" }}
+              onClick={() => onOpenLead(l.id)}
+            >
+              <div className="rc-main">
+                <div className="rc-name" style={{ color: "#4f46e5" }}>
+                  {l.name}
+                </div>
+                <div className="rc-meta">{fmt(l.createdAt)}</div>
+              </div>
+              <span className="pill pill-stage">{l.stage}</span>
+              <span
+                className="pill"
+                style={{
+                  background: `${LEAD_STATUS_COLORS[l.status] || "#6b7280"}22`,
+                  color: LEAD_STATUS_COLORS[l.status] || "#6b7280",
+                }}
+              >
+                {l.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="page-head">
+        <div>
           <h2 style={{ fontSize: 18 }}>History</h2>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -1619,6 +1703,134 @@ function ContactDetail({
       ) : (
         <div className="timeline">
           {contact.interactions.map((i) => (
+            <div className="timeline-item" key={i.id}>
+              <div className="timeline-icon">{INTERACTION_ICONS[i.type] || "•"}</div>
+              <div className="timeline-body">
+                <div className="timeline-content">{i.content}</div>
+                <div className="timeline-meta">
+                  {i.type} · {i.createdBy || "Unknown"} · {fmtDateTime(i.createdAt)}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function LeadDetail({
+  lead,
+  onBack,
+  onEdit,
+  onDelete,
+  onLogInteraction,
+  onAddTask,
+  onOpenContact,
+}: {
+  lead: Lead & { contact: (Contact & { interactions: Interaction[] }) | null };
+  onBack: () => void;
+  onEdit: () => void;
+  onDelete?: () => void;
+  onLogInteraction: () => void;
+  onAddTask: () => void;
+  onOpenContact: (id: string) => void;
+}) {
+  const contactId = lead.contactId;
+
+  function exportCsv() {
+    downloadCsv(
+      `realtyos-${lead.name.replace(/\s+/g, "-").toLowerCase()}-lead-history-${todayStr()}.csv`,
+      ["Type", "Content", "Logged By", "Date"],
+      (lead.contact?.interactions || []).map((i) => [i.type, i.content, i.createdBy || "", fmtDateTime(i.createdAt)])
+    );
+  }
+
+  return (
+    <>
+      <div className="detail-back" onClick={onBack}>
+        ← Back to Leads
+      </div>
+      <div className="detail-header">
+        <div>
+          <div className="detail-name">{lead.name}</div>
+          <div className="detail-meta">{lead.phone}</div>
+          <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+            <span className="pill pill-stage">{lead.stage}</span>
+            <span
+              className="pill"
+              style={{
+                background: `${LEAD_STATUS_COLORS[lead.status] || "#6b7280"}22`,
+                color: LEAD_STATUS_COLORS[lead.status] || "#6b7280",
+              }}
+            >
+              {lead.status}
+            </span>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {lead.phone && (
+            <>
+              <a className="btn btn-ghost btn-sm" href={`tel:${lead.phone.replace(/[^0-9+]/g, "")}`}>
+                📞 Call
+              </a>
+              <a className="btn btn-ghost btn-sm" href={waLink(lead.phone)} target="_blank" rel="noopener">
+                💬 WhatsApp
+              </a>
+            </>
+          )}
+          {contactId && (
+            <button className="btn btn-ghost btn-sm" onClick={() => onOpenContact(contactId)}>
+              View Contact →
+            </button>
+          )}
+          <button className="btn btn-ghost btn-sm" onClick={onAddTask}>
+            + Add Task
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={onEdit}>
+            Edit
+          </button>
+          {onDelete && (
+            <button className="btn-danger" onClick={onDelete}>
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="card-grid" style={{ marginBottom: 20 }}>
+        <div className="entity-card">
+          <div className="entity-name">Lead Details</div>
+          {fieldRow("Property Type", lead.propertyType)}
+          {fieldRow("Budget Range", lead.budgetRange)}
+          {fieldRow("Preferred Location", lead.preferredLocation)}
+          {fieldRow("Interest / Notes", lead.interest)}
+          {fieldRow("Source", lead.source)}
+          {fieldRow("Assigned To", lead.assignedTo?.name || lead.assignedTo?.email)}
+          {lead.status === "Lost" && fieldRow("Loss Reason", lead.lossReason)}
+          {fieldRow("Created", fmt(lead.createdAt))}
+        </div>
+      </div>
+
+      <div className="page-head">
+        <div>
+          <h2 style={{ fontSize: 18 }}>History</h2>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={exportCsv}>
+            Export CSV
+          </button>
+          <button className="btn" onClick={onLogInteraction} disabled={!contactId}>
+            + Log Interaction
+          </button>
+        </div>
+      </div>
+
+      {!lead.contact || lead.contact.interactions.length === 0 ? (
+        <div className="empty">No interactions logged yet.</div>
+      ) : (
+        <div className="timeline">
+          {lead.contact.interactions.map((i) => (
             <div className="timeline-item" key={i.id}>
               <div className="timeline-icon">{INTERACTION_ICONS[i.type] || "•"}</div>
               <div className="timeline-body">

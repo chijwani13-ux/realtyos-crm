@@ -9,6 +9,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const session = await auth();
+  const isEmployee = session?.user?.role === "Employee";
+
   const contact = await prisma.contact.findUnique({
     where: { id },
     include: {
@@ -18,12 +21,15 @@ export async function GET(
       vendorDetails: true,
       sellerDetails: true,
       interactions: { orderBy: { createdAt: "desc" } },
+      leads: {
+        where: isEmployee ? { assignedToId: session!.user.id } : undefined,
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
   if (!contact) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const session = await auth();
-  if (session?.user?.role === "Employee") {
+  if (isEmployee) {
     return NextResponse.json({
       ...contact,
       builderDetails: contact.builderDetails

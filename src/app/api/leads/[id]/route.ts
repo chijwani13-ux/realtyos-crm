@@ -4,6 +4,33 @@ import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/permissions";
 import { stageRequiresBudget } from "@/lib/leadStages";
 
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const session = await auth();
+  const isEmployee = session?.user?.role === "Employee";
+
+  const lead = await prisma.lead.findUnique({
+    where: { id },
+    include: {
+      assignedTo: { select: { id: true, name: true, email: true } },
+      contact: {
+        include: {
+          interactions: { orderBy: { createdAt: "desc" } },
+          leads: { orderBy: { createdAt: "desc" } },
+        },
+      },
+    },
+  });
+  if (!lead) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (isEmployee && lead.assignedToId !== session!.user.id) {
+    return NextResponse.json({ error: "Not your assigned lead" }, { status: 403 });
+  }
+  return NextResponse.json(lead);
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
