@@ -14,6 +14,9 @@ export async function POST(req: NextRequest) {
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
       contactId: body.contactId || null,
       status: "pending",
+      recurrenceFreq: body.recurrenceFreq || "none",
+      recurrenceInterval: body.recurrenceInterval || 1,
+      recurringUntilCancelled: !!body.recurringUntilCancelled,
     },
   });
   return NextResponse.json(task, { status: 201 });

@@ -221,6 +221,10 @@ model Task {
   contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
   createdAt DateTime  @default(now())
 
+  recurrenceFreq          String  @default("none") // none, daily, weekly, monthly
+  recurrenceInterval      Int     @default(1)
+  recurringUntilCancelled Boolean @default(false)
+
   @@index([contactId])
 }
 

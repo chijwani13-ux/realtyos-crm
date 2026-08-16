@@ -392,6 +392,24 @@ export default function CrmApp({
     setTasks((prev) => [created, ...prev]);
     setModal(null);
   }
+
+  async function setDeadLeadRecheck(contactId: string, contactName: string) {
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 60);
+    const created = await api<Task>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        title: `Recheck cold lead: ${contactName}`,
+        dueDate: dueDate.toISOString().slice(0, 10),
+        contactId,
+        recurrenceFreq: "daily",
+        recurrenceInterval: 60,
+        recurringUntilCancelled: true,
+      }),
+    });
+    setTasks((prev) => [created, ...prev]);
+    showToast("Dead lead recheck set — will resurface every 60 days");
+  }
   async function saveDoc(data: Partial<DocumentItem>) {
     const created = await api<DocumentItem>("/api/documents", { method: "POST", body: JSON.stringify(data) });
     setDocs((prev) => [created, ...prev]);
@@ -640,6 +658,7 @@ export default function CrmApp({
                   onDelete={isOwner ? () => requestDelete("contact", contactDetail.id, contactDetail.name) : undefined}
                   onLogInteraction={() => setModal({ type: "interaction", contactId: contactDetail.id })}
                   onAddTask={() => setModal({ type: "task", entity: { contactId: contactDetail.id } })}
+                  onSetDeadLeadRecheck={() => setDeadLeadRecheck(contactDetail.id, contactDetail.name)}
                 />
               ) : (
                 <ContactsTab
@@ -1427,6 +1446,7 @@ function ContactDetail({
   onDelete,
   onLogInteraction,
   onAddTask,
+  onSetDeadLeadRecheck,
 }: {
   contact: Contact & { interactions: Interaction[] };
   onBack: () => void;
@@ -1434,6 +1454,7 @@ function ContactDetail({
   onDelete?: () => void;
   onLogInteraction: () => void;
   onAddTask: () => void;
+  onSetDeadLeadRecheck: () => void;
 }) {
   function exportCsv() {
     downloadCsv(
@@ -1496,6 +1517,9 @@ function ContactDetail({
             {fieldRow("Needs", contact.buyerDetails.needs)}
             {fieldRow("Status", contact.buyerDetails.status)}
             {fieldRow("Next Follow-up", fmt(contact.buyerDetails.nextFollowUp))}
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onSetDeadLeadRecheck}>
+              🔁 Set Dead Lead Recheck (60 days)
+            </button>
           </div>
         )}
         {contact.builderDetails && (
