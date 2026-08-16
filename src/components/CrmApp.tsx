@@ -91,6 +91,17 @@ type BuilderDetails = {
 type BrokerDetails = {
   agencyName: string | null;
   commissionSplit: string | null;
+  status: string;
+};
+type VendorDetails = {
+  serviceType: string | null;
+  rateCardRef: string | null;
+  status: string;
+};
+type SellerDetails = {
+  propertyRef: string | null;
+  askingPrice: string | null;
+  status: string;
 };
 type Contact = {
   id: string;
@@ -104,6 +115,8 @@ type Contact = {
   buyerDetails: BuyerDetails | null;
   builderDetails: BuilderDetails | null;
   brokerDetails: BrokerDetails | null;
+  vendorDetails: VendorDetails | null;
+  sellerDetails: SellerDetails | null;
 };
 type Interaction = {
   id: string;
@@ -1537,6 +1550,23 @@ function ContactDetail({
             <div className="entity-name">Broker Details</div>
             {fieldRow("Agency", contact.brokerDetails.agencyName)}
             {fieldRow("Commission Split", contact.brokerDetails.commissionSplit)}
+            {fieldRow("Status", contact.brokerDetails.status)}
+          </div>
+        )}
+        {contact.vendorDetails && (
+          <div className="entity-card">
+            <div className="entity-name">Vendor Details</div>
+            {fieldRow("Service Type", contact.vendorDetails.serviceType)}
+            {fieldRow("Rate Card Ref", contact.vendorDetails.rateCardRef)}
+            {fieldRow("Status", contact.vendorDetails.status)}
+          </div>
+        )}
+        {contact.sellerDetails && (
+          <div className="entity-card">
+            <div className="entity-name">Seller Details</div>
+            {fieldRow("Property Ref", contact.sellerDetails.propertyRef)}
+            {fieldRow("Asking Price", contact.sellerDetails.askingPrice)}
+            {fieldRow("Status", contact.sellerDetails.status)}
           </div>
         )}
       </div>
@@ -2791,6 +2821,13 @@ function EntityModal({
         brochureLink: c.builderDetails?.brochureLink,
         agencyName: c.brokerDetails?.agencyName,
         commissionSplit: c.brokerDetails?.commissionSplit,
+        brokerStatus: c.brokerDetails?.status,
+        serviceType: c.vendorDetails?.serviceType,
+        rateCardRef: c.vendorDetails?.rateCardRef,
+        vendorStatus: c.vendorDetails?.status,
+        propertyRef: c.sellerDetails?.propertyRef,
+        askingPrice: c.sellerDetails?.askingPrice,
+        sellerStatus: c.sellerDetails?.status,
       };
     }
     return { ...modal.entity };
@@ -2859,6 +2896,13 @@ function EntityModal({
         brochureLink: str("brochureLink"),
         agencyName: str("agencyName"),
         commissionSplit: str("commissionSplit"),
+        brokerStatus: str("brokerStatus") || "Active",
+        serviceType: str("serviceType"),
+        rateCardRef: str("rateCardRef"),
+        vendorStatus: str("vendorStatus") || "Active",
+        propertyRef: str("propertyRef"),
+        askingPrice: str("askingPrice"),
+        sellerStatus: str("sellerStatus") || "Active",
       });
     } else if (modal.type === "project") {
       if (!str("name").trim()) {
@@ -3097,6 +3141,56 @@ function EntityModal({
                     <input value={str("commissionSplit")} onChange={(e) => set("commissionSplit", e.target.value)} />
                   </div>
                 )}
+                <div className="field">
+                  <label>Broker Status</label>
+                  <select value={str("brokerStatus") || "Active"} onChange={(e) => set("brokerStatus", e.target.value)}>
+                    <option>Active</option>
+                    <option>Inactive</option>
+                    <option>Dormant</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {selectedTypes.includes("Vendor") && (
+              <>
+                <div className="field">
+                  <label>Service Type</label>
+                  <input value={str("serviceType")} onChange={(e) => set("serviceType", e.target.value)} placeholder="Photography, Legal, ..." />
+                </div>
+                <div className="field">
+                  <label>Rate Card Reference</label>
+                  <input value={str("rateCardRef")} onChange={(e) => set("rateCardRef", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Vendor Status</label>
+                  <select value={str("vendorStatus") || "Active"} onChange={(e) => set("vendorStatus", e.target.value)}>
+                    <option>Active</option>
+                    <option>Inactive</option>
+                    <option>Dormant</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {selectedTypes.includes("Seller") && (
+              <>
+                <div className="field">
+                  <label>Property Reference</label>
+                  <input value={str("propertyRef")} onChange={(e) => set("propertyRef", e.target.value)} placeholder="Which listing/project" />
+                </div>
+                <div className="field">
+                  <label>Asking Price</label>
+                  <input value={str("askingPrice")} onChange={(e) => set("askingPrice", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Seller Status</label>
+                  <select value={str("sellerStatus") || "Active"} onChange={(e) => set("sellerStatus", e.target.value)}>
+                    <option>Active</option>
+                    <option>Inactive</option>
+                    <option>Dormant</option>
+                  </select>
+                </div>
               </>
             )}
 

@@ -20,7 +20,13 @@ export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get("type");
   const contacts = await prisma.contact.findMany({
     where: type ? { types: { has: type } } : undefined,
-    include: { buyerDetails: true, builderDetails: true, brokerDetails: true },
+    include: {
+      buyerDetails: true,
+      builderDetails: true,
+      brokerDetails: true,
+      vendorDetails: true,
+      sellerDetails: true,
+    },
     orderBy: { createdAt: "desc" },
   });
   if (session?.user?.role === "Employee") {
@@ -74,6 +80,27 @@ export async function POST(req: NextRequest) {
         contactId: contact.id,
         agencyName: body.agencyName || null,
         commissionSplit: body.commissionSplit || null,
+        status: body.brokerStatus || "Active",
+      },
+    });
+  }
+  if (types.includes("Vendor")) {
+    await prisma.vendorDetails.create({
+      data: {
+        contactId: contact.id,
+        serviceType: body.serviceType || null,
+        rateCardRef: body.rateCardRef || null,
+        status: body.vendorStatus || "Active",
+      },
+    });
+  }
+  if (types.includes("Seller")) {
+    await prisma.sellerDetails.create({
+      data: {
+        contactId: contact.id,
+        propertyRef: body.propertyRef || null,
+        askingPrice: body.askingPrice || null,
+        status: body.sellerStatus || "Active",
       },
     });
   }
@@ -84,7 +111,13 @@ export async function POST(req: NextRequest) {
 
   const full = await prisma.contact.findUnique({
     where: { id: contact.id },
-    include: { buyerDetails: true, builderDetails: true, brokerDetails: true },
+    include: {
+      buyerDetails: true,
+      builderDetails: true,
+      brokerDetails: true,
+      vendorDetails: true,
+      sellerDetails: true,
+    },
   });
   return NextResponse.json(full, { status: 201 });
 }

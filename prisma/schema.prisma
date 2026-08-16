@@ -104,6 +104,8 @@ model Contact {
   buyerDetails    BuyerDetails?
   builderDetails  BuilderDetails?
   brokerDetails   BrokerDetails?
+  vendorDetails   VendorDetails?
+  sellerDetails   SellerDetails?
   interactions    Interaction[]
   leads           Lead[]
   tasks           Task[]
@@ -135,6 +137,23 @@ model BrokerDetails {
   contact         Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
   agencyName      String?
   commissionSplit String?
+  status          String  @default("Active") // Active, Inactive, Dormant
+}
+
+model VendorDetails {
+  contactId   String  @id
+  contact     Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  serviceType String?
+  rateCardRef String?
+  status      String  @default("Active")
+}
+
+model SellerDetails {
+  contactId   String  @id
+  contact     Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  propertyRef String?
+  askingPrice String?
+  status      String  @default("Active")
 }
 
 model Interaction {

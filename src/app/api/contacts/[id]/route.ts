@@ -15,6 +15,8 @@ export async function GET(
       buyerDetails: true,
       builderDetails: true,
       brokerDetails: true,
+      vendorDetails: true,
+      sellerDetails: true,
       interactions: { orderBy: { createdAt: "desc" } },
     },
   });
@@ -112,14 +114,54 @@ export async function PUT(
         contactId: id,
         agencyName: body.agencyName || null,
         commissionSplit: isEmployee ? null : body.commissionSplit || null,
+        status: body.brokerStatus || "Active",
       },
       update: {
         agencyName: body.agencyName || null,
         ...(isEmployee ? {} : { commissionSplit: body.commissionSplit || null }),
+        status: body.brokerStatus || "Active",
       },
     });
   } else {
     await prisma.brokerDetails.deleteMany({ where: { contactId: id } });
+  }
+
+  if (types.includes("Vendor")) {
+    await prisma.vendorDetails.upsert({
+      where: { contactId: id },
+      create: {
+        contactId: id,
+        serviceType: body.serviceType || null,
+        rateCardRef: body.rateCardRef || null,
+        status: body.vendorStatus || "Active",
+      },
+      update: {
+        serviceType: body.serviceType || null,
+        rateCardRef: body.rateCardRef || null,
+        status: body.vendorStatus || "Active",
+      },
+    });
+  } else {
+    await prisma.vendorDetails.deleteMany({ where: { contactId: id } });
+  }
+
+  if (types.includes("Seller")) {
+    await prisma.sellerDetails.upsert({
+      where: { contactId: id },
+      create: {
+        contactId: id,
+        propertyRef: body.propertyRef || null,
+        askingPrice: body.askingPrice || null,
+        status: body.sellerStatus || "Active",
+      },
+      update: {
+        propertyRef: body.propertyRef || null,
+        askingPrice: body.askingPrice || null,
+        status: body.sellerStatus || "Active",
+      },
+    });
+  } else {
+    await prisma.sellerDetails.deleteMany({ where: { contactId: id } });
   }
 
   if (types.includes("Buyer")) {
@@ -128,7 +170,13 @@ export async function PUT(
 
   const full = await prisma.contact.findUnique({
     where: { id },
-    include: { buyerDetails: true, builderDetails: true, brokerDetails: true },
+    include: {
+      buyerDetails: true,
+      builderDetails: true,
+      brokerDetails: true,
+      vendorDetails: true,
+      sellerDetails: true,
+    },
   });
   return NextResponse.json(full);
 }
