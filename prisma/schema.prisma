@@ -71,7 +71,10 @@ model Lead {
   id        String   @id @default(cuid())
   name      String
   phone     String
-  interest  String?
+  interest  String? // free-text notes; structured fields below are preferred going forward
+  propertyType      String?
+  budgetRange       String?
+  preferredLocation String?
   stage     String   @default("Lead") // Lead, First Call, Follow-up Call, Qualification, Consultation, Site Visit Scheduled, Site Visit Done, Negotiation, Booked, Registration, Closed
   status    String   @default("Open") // Open, On Hold, Won, Lost
   lossReason String? // set when status = Lost: Disqualified, Rejected, Budget Mismatch, Not Interested, No Response, Lost to Competitor, Other

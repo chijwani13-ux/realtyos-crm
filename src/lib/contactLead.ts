@@ -33,6 +33,23 @@ export async function createLeadFromExternalSource(data: {
     contactId = contact.id;
   }
 
+  // Already has an active lead — don't spawn a second one for the same
+  // person; log it on their existing timeline instead.
+  const activeLead = await prisma.lead.findFirst({
+    where: { contactId, status: { in: ["Open", "On Hold"] } },
+  });
+  if (activeLead) {
+    await prisma.interaction.create({
+      data: {
+        contactId,
+        type: "Note",
+        content: `Duplicate lead received from ${data.source} — already has an open lead`,
+        createdBy: "System",
+      },
+    });
+    return activeLead;
+  }
+
   return prisma.lead.create({
     data: {
       name: data.name,

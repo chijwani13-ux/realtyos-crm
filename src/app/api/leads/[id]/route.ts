@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/permissions";
+import { stageRequiresBudget } from "@/lib/leadStages";
 
 export async function PUT(
   req: NextRequest,
@@ -17,12 +18,24 @@ export async function PUT(
     return NextResponse.json({ error: "Not your assigned lead" }, { status: 403 });
   }
 
+  const finalStage = body.stage ?? existing?.stage ?? "Lead";
+  const finalBudget = body.budgetRange !== undefined ? body.budgetRange : existing?.budgetRange;
+  if (stageRequiresBudget(finalStage) && !finalBudget) {
+    return NextResponse.json(
+      { error: "Budget Range is required from Qualification stage onward" },
+      { status: 400 }
+    );
+  }
+
   const lead = await prisma.lead.update({
     where: { id },
     data: {
       name: body.name,
       phone: body.phone,
       interest: body.interest ?? null,
+      propertyType: body.propertyType || null,
+      budgetRange: body.budgetRange || null,
+      preferredLocation: body.preferredLocation || null,
       stage: body.stage,
       status: body.status || "Open",
       lossReason: body.status === "Lost" ? body.lossReason || null : null,

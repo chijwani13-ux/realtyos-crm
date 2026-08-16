@@ -3,20 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "next-auth/react";
 import { todayStrIST } from "@/lib/geo";
+import { LEAD_STAGES, stageRequiresBudget } from "@/lib/leadStages";
 
-const STAGES = [
-  "Lead",
-  "First Call",
-  "Follow-up Call",
-  "Qualification",
-  "Consultation",
-  "Site Visit Scheduled",
-  "Site Visit Done",
-  "Negotiation",
-  "Booked",
-  "Registration",
-  "Closed",
-] as const;
+const STAGES = LEAD_STAGES;
 const EVENT_TYPES = ["Call", "Meeting", "Site Visit", "Builder Meeting"] as const;
 const DOC_TYPES = ["Brochure", "Price Sheet", "Floor Plan", "Legal Document", "RERA PDF"] as const;
 const CONTACT_TYPES = ["Buyer", "Builder", "Vendor", "Seller", "Broker"] as const;
@@ -64,6 +53,9 @@ type Lead = {
   name: string;
   phone: string;
   interest: string | null;
+  propertyType: string | null;
+  budgetRange: string | null;
+  preferredLocation: string | null;
   stage: string;
   status: string;
   lossReason: string | null;
@@ -361,8 +353,16 @@ export default function CrmApp({
       const updated = await api<Lead>(`/api/leads/${data.id}`, { method: "PUT", body: JSON.stringify(data) });
       setLeads((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
     } else {
-      const created = await api<Lead>("/api/leads", { method: "POST", body: JSON.stringify(data) });
-      setLeads((prev) => [created, ...prev]);
+      const created = await api<Lead & { duplicate?: boolean }>("/api/leads", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      if (created.duplicate) {
+        showToast(`${created.name} already has an open lead — opening that instead of creating a new one`);
+        setLeads((prev) => prev.map((x) => (x.id === created.id ? created : x)));
+      } else {
+        setLeads((prev) => [created, ...prev]);
+      }
       loadAll();
     }
     setModal(null);
@@ -501,8 +501,18 @@ export default function CrmApp({
   async function moveLeadStage(id: string, stage: string) {
     const lead = leads.find((l) => l.id === id);
     if (!lead) return;
+    if (stageRequiresBudget(stage) && !lead.budgetRange) {
+      showToast(`Set a Budget Range before moving this lead to ${stage}`);
+      return;
+    }
+    const prevStage = lead.stage;
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage } : l)));
-    await api(`/api/leads/${id}`, { method: "PUT", body: JSON.stringify({ ...lead, stage }) });
+    try {
+      await api(`/api/leads/${id}`, { method: "PUT", body: JSON.stringify({ ...lead, stage }) });
+    } catch (e) {
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage: prevStage } : l)));
+      showToast(e instanceof Error ? e.message : "Could not move lead");
+    }
   }
 
   async function shareProjectOnWhatsApp(project: Project, contact: Contact, message: string) {
@@ -1198,7 +1208,20 @@ function LeadsTab({
   function exportCsv() {
     downloadCsv(
       `realtyos-leads-${todayStr()}.csv`,
-      ["Name", "Phone", "Stage", "Status", "Loss Reason", "Assigned To", "Source", "Interest", "Created"],
+      [
+        "Name",
+        "Phone",
+        "Stage",
+        "Status",
+        "Loss Reason",
+        "Assigned To",
+        "Source",
+        "Property Type",
+        "Budget Range",
+        "Preferred Location",
+        "Interest",
+        "Created",
+      ],
       leads.map((l) => [
         l.name,
         l.phone,
@@ -1207,6 +1230,9 @@ function LeadsTab({
         l.lossReason || "",
         l.assignedTo?.name || l.assignedTo?.email || "",
         l.source || "",
+        l.propertyType || "",
+        l.budgetRange || "",
+        l.preferredLocation || "",
         l.interest || "",
         fmt(l.createdAt),
       ])
@@ -2856,12 +2882,20 @@ function EntityModal({
         showToast("Name and phone required");
         return;
       }
+      const stage = str("stage") || "Lead";
+      if (stageRequiresBudget(stage) && !str("budgetRange").trim()) {
+        showToast("Budget Range is required from Qualification stage onward");
+        return;
+      }
       onSaveLead({
         id: modal.entity.id,
         name: str("name"),
         phone: str("phone"),
         interest: str("interest"),
-        stage: str("stage") || "Lead",
+        propertyType: str("propertyType"),
+        budgetRange: str("budgetRange"),
+        preferredLocation: str("preferredLocation"),
+        stage,
         status: str("status") || "Open",
         lossReason: str("status") === "Lost" ? str("lossReason") || null : null,
         source: str("source"),
@@ -2989,7 +3023,22 @@ function EntityModal({
               <input value={str("phone")} onChange={(e) => set("phone", e.target.value)} />
             </div>
             <div className="field">
-              <label>Interest</label>
+              <label>Property Type</label>
+              <input value={str("propertyType")} onChange={(e) => set("propertyType", e.target.value)} placeholder="3BHK, Shop, Plot, ..." />
+            </div>
+            <div className="field">
+              <label>
+                Budget Range
+                {stageRequiresBudget(str("stage") || "Lead") && <span style={{ color: "#ef4444" }}> *</span>}
+              </label>
+              <input value={str("budgetRange")} onChange={(e) => set("budgetRange", e.target.value)} placeholder="₹40-50L" />
+            </div>
+            <div className="field">
+              <label>Preferred Location</label>
+              <input value={str("preferredLocation")} onChange={(e) => set("preferredLocation", e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Interest / Notes</label>
               <input value={str("interest")} onChange={(e) => set("interest", e.target.value)} />
             </div>
             <div className="field">
