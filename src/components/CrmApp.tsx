@@ -165,6 +165,7 @@ type Tab =
   | "tasks"
   | "docs"
   | "team"
+  | "reports"
   | "ai"
   | "settings";
 
@@ -600,6 +601,7 @@ export default function CrmApp({
               ["tasks", "✅ Tasks"],
               ["docs", "📁 Documents"],
               ["team", "🧑‍🤝‍🧑 Team"],
+              ...(isOwner ? [["reports", "📊 Reports"] as [Tab, string]] : []),
               ["ai", "✨ AI Assistant"],
               ["settings", "⚙️ Settings"],
             ] as [Tab, string][]
@@ -731,6 +733,7 @@ export default function CrmApp({
             {tab === "team" && (
               <TeamTab currentUser={currentUser} isOwner={isOwner} teamUsers={teamUsers} showToast={showToast} />
             )}
+            {tab === "reports" && isOwner && <ReportsTab showToast={showToast} />}
             {tab === "ai" && (
               <>
                 <div className="page-head">
@@ -2382,6 +2385,128 @@ function TeamTab({
           ))}
         </div>
       )}
+    </>
+  );
+}
+
+// ---------------- REPORTS ----------------
+
+type LeadReport = {
+  funnel: { stage: string; count: number }[];
+  statusBreakdown: { open: number; onHold: number; won: number; lost: number };
+  winRate: number | null;
+  totalLeads: number;
+  sourcePerformance: { source: string; total: number; won: number; lost: number; winRate: number | null }[];
+};
+
+function ReportsTab({ showToast }: { showToast: (msg: string) => void }) {
+  const [report, setReport] = useState<LeadReport | null>(null);
+
+  useEffect(() => {
+    api<LeadReport>("/api/reports/leads")
+      .then(setReport)
+      .catch(() => showToast("Could not load reports"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!report) {
+    return (
+      <>
+        <div className="page-head">
+          <h2>Reports</h2>
+        </div>
+        <div className="empty-sm">Loading…</div>
+      </>
+    );
+  }
+
+  const maxFunnelCount = Math.max(1, ...report.funnel.map((f) => f.count));
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h2>Reports</h2>
+        </div>
+      </div>
+
+      <div className="grid3" style={{ marginBottom: 20 }}>
+        <div className="card">
+          <h3>Total Leads</h3>
+          <div style={{ fontSize: 32, fontWeight: 800 }}>{report.totalLeads}</div>
+        </div>
+        <div className="card">
+          <h3>Win Rate</h3>
+          <div style={{ fontSize: 32, fontWeight: 800, color: "#22c55e" }}>
+            {report.winRate === null ? "—" : `${report.winRate}%`}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>
+            {report.statusBreakdown.won} Won · {report.statusBreakdown.lost} Lost
+          </div>
+        </div>
+        <div className="card">
+          <h3>Status Breakdown</h3>
+          <div style={{ fontSize: 12.5, lineHeight: 1.9 }}>
+            <div>Open: {report.statusBreakdown.open}</div>
+            <div>On Hold: {report.statusBreakdown.onHold}</div>
+            <div>Won: {report.statusBreakdown.won}</div>
+            <div>Lost: {report.statusBreakdown.lost}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <h3>Pipeline Funnel</h3>
+        {report.funnel.map((f) => (
+          <div key={f.stage} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 3 }}>
+              <span>{f.stage}</span>
+              <span style={{ fontWeight: 700 }}>{f.count}</span>
+            </div>
+            <div style={{ background: "var(--border)", borderRadius: 6, height: 8, overflow: "hidden" }}>
+              <div
+                style={{
+                  width: `${(f.count / maxFunnelCount) * 100}%`,
+                  background: "var(--grad)",
+                  height: "100%",
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card">
+        <h3>Lead Source Performance</h3>
+        {report.sourcePerformance.length === 0 ? (
+          <div className="empty-sm">No leads yet.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+              <thead>
+                <tr style={{ textAlign: "left", color: "var(--ink-faint)" }}>
+                  <th style={{ padding: "6px 8px" }}>Source</th>
+                  <th style={{ padding: "6px 8px" }}>Total</th>
+                  <th style={{ padding: "6px 8px" }}>Won</th>
+                  <th style={{ padding: "6px 8px" }}>Lost</th>
+                  <th style={{ padding: "6px 8px" }}>Win Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.sourcePerformance.map((s) => (
+                  <tr key={s.source} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td style={{ padding: "6px 8px" }}>{s.source}</td>
+                    <td style={{ padding: "6px 8px" }}>{s.total}</td>
+                    <td style={{ padding: "6px 8px" }}>{s.won}</td>
+                    <td style={{ padding: "6px 8px" }}>{s.lost}</td>
+                    <td style={{ padding: "6px 8px" }}>{s.winRate === null ? "—" : `${s.winRate}%`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </>
   );
 }
