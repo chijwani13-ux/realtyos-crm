@@ -53,51 +53,51 @@ function LoginForm() {
       style={{
         minHeight: "100vh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         background:
-          "radial-gradient(circle at 8% 8%, rgba(212,166,45,0.08), transparent 42%), radial-gradient(circle at 95% 15%, rgba(18,33,66,0.06), transparent 40%), linear-gradient(180deg, #F8F7F5, #F1E9D8)",
+          "radial-gradient(circle at 8% 8%, rgba(212,166,45,0.10), transparent 42%), radial-gradient(circle at 95% 15%, rgba(212,166,45,0.06), transparent 40%), #122142",
         fontFamily: "'IBM Plex Sans', -apple-system, sans-serif",
+        padding: "24px 16px",
       }}
     >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          marginBottom: 32,
+        }}
+      >
+        <div
+          style={{
+            width: 96,
+            height: 96,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 18,
+          }}
+        >
+          <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={96} height={124} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
+        </div>
+        <div style={{ fontSize: 28, lineHeight: 1, fontFamily: "'Libre Caslon Text', Georgia, serif", letterSpacing: "0.01em", textAlign: "center" }}>
+          <span style={{ color: "#fff" }}>Chijwani </span>
+          <span style={{ color: "#D4A62D" }}>RealTech</span>
+        </div>
+      </div>
       <form
         onSubmit={handleSubmit}
         style={{
           background: "#fff",
           borderRadius: 22,
-          overflow: "hidden",
+          padding: "28px 32px 32px",
           width: "100%",
           maxWidth: 380,
-          boxShadow: "0 24px 60px rgba(15,31,61,0.16)",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
         }}
       >
-        <div
-          style={{
-            background: "#122142",
-            padding: "40px 32px 32px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              width: 96,
-              height: 96,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: 18,
-            }}
-          >
-            <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={96} height={124} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
-          </div>
-          <div style={{ fontSize: 26, lineHeight: 1, fontFamily: "'Libre Caslon Text', Georgia, serif", letterSpacing: "0.01em", textAlign: "center" }}>
-            <span style={{ color: "#fff" }}>Chijwani </span>
-            <span style={{ color: "#D4A62D" }}>RealTech</span>
-          </div>
-        </div>
-        <div style={{ padding: "28px 32px 32px" }}>
         <p style={{ fontSize: 13, color: "#5A5347", margin: "0 0 24px", textAlign: "center" }}>
           Sign in to your CRM
         </p>
@@ -178,7 +178,6 @@ function LoginForm() {
         >
           {loading ? "Signing in…" : "Sign In"}
         </button>
-        </div>
       </form>
     </div>
   );

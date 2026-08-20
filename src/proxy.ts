@@ -26,5 +26,5 @@ export default auth((req) => {
 export const config = {
   // api/webhooks/* is excluded — those routes are called by external
   // services (no session cookie) and verify requests via signature instead.
-  matcher: ["/((?!api/auth|api/webhooks|login|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/auth|api/webhooks|login|_next/static|_next/image|favicon.ico|brand/).*)"],
 };
