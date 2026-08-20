@@ -605,10 +605,15 @@ export default function CrmApp({
       <div className="app-shell">
         <div className="sidebar">
           <div className="brand">
-            <div className="brand-mark">R</div>
+            <div className="brand-mark">
+              <svg width="18" height="18" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 33V21.5L26 14L37 21.5V33" stroke="#D4A62D" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M20.5 33V25.5H31.5V33" stroke="#D4A62D" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
             <div>
-              <div className="brand-title">RealtyOS</div>
-              <div className="brand-sub">Your CRM</div>
+              <div className="brand-title">Chijwani RealTech</div>
+              <div className="brand-sub">OS</div>
             </div>
           </div>
           {(
@@ -1169,7 +1174,7 @@ function Dashboard(props: {
 
       <div style={{ marginTop: 24 }}>
         <div className="page-head">
-          <h2 style={{ fontSize: 18 }}>✨ Ask RealtyOS</h2>
+          <h2 style={{ fontSize: 18 }}>✨ Ask Chijwani RealTech</h2>
         </div>
         <AIBox
           messages={props.aiMessages}

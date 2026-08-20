@@ -55,8 +55,8 @@ function LoginForm() {
         alignItems: "center",
         justifyContent: "center",
         background:
-          "radial-gradient(circle at 8% 8%, rgba(6,182,212,0.10), transparent 42%), radial-gradient(circle at 95% 15%, rgba(79,70,229,0.10), transparent 40%), linear-gradient(180deg, #fdf2f8, #fff7ed)",
-        fontFamily: "-apple-system, sans-serif",
+          "radial-gradient(circle at 8% 8%, rgba(212,166,45,0.08), transparent 42%), radial-gradient(circle at 95% 15%, rgba(18,33,66,0.06), transparent 40%), linear-gradient(180deg, #F8F7F5, #F1E9D8)",
+        fontFamily: "'IBM Plex Sans', -apple-system, sans-serif",
       }}
     >
       <form
@@ -67,7 +67,7 @@ function LoginForm() {
           padding: 32,
           width: "100%",
           maxWidth: 380,
-          boxShadow: "0 24px 60px rgba(79,70,229,0.16)",
+          boxShadow: "0 24px 60px rgba(15,31,61,0.16)",
         }}
       >
         <div
@@ -75,23 +75,22 @@ function LoginForm() {
             width: 44,
             height: 44,
             borderRadius: 12,
-            background:
-              "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 55%, #06b6d4 100%)",
-            color: "#fff",
+            background: "#122142",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontWeight: 800,
-            fontSize: 16,
             marginBottom: 16,
           }}
         >
-          R
+          <svg width="22" height="22" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 33V21.5L26 14L37 21.5V33" stroke="#D4A62D" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M20.5 33V25.5H31.5V33" stroke="#D4A62D" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px" }}>
-          RealtyOS
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", fontFamily: "'Libre Caslon Text', Georgia, serif" }}>
+          Chijwani RealTech OS
         </h1>
-        <p style={{ fontSize: 13, color: "#6b6178", margin: "0 0 24px" }}>
+        <p style={{ fontSize: 13, color: "#5A5347", margin: "0 0 24px" }}>
           Sign in to your CRM
         </p>
         <div style={{ marginBottom: 14 }}>
@@ -100,7 +99,7 @@ function LoginForm() {
               display: "block",
               fontSize: 12,
               fontWeight: 700,
-              color: "#6b6178",
+              color: "#5A5347",
               marginBottom: 5,
             }}
           >
@@ -114,10 +113,10 @@ function LoginForm() {
             style={{
               width: "100%",
               padding: "10px 13px",
-              border: "1px solid rgba(17,24,39,0.08)",
+              border: "1px solid rgba(18,33,66,0.08)",
               borderRadius: 12,
               fontSize: "13.5px",
-              background: "#faf9fb",
+              background: "#F8F7F5",
             }}
           />
         </div>
@@ -127,7 +126,7 @@ function LoginForm() {
               display: "block",
               fontSize: 12,
               fontWeight: 700,
-              color: "#6b6178",
+              color: "#5A5347",
               marginBottom: 5,
             }}
           >
@@ -141,15 +140,15 @@ function LoginForm() {
             style={{
               width: "100%",
               padding: "10px 13px",
-              border: "1px solid rgba(17,24,39,0.08)",
+              border: "1px solid rgba(18,33,66,0.08)",
               borderRadius: 12,
               fontSize: "13.5px",
-              background: "#faf9fb",
+              background: "#F8F7F5",
             }}
           />
         </div>
         {error && (
-          <div style={{ color: "#e11d48", fontSize: 12.5, marginBottom: 14 }}>
+          <div style={{ color: "#AC3D3D", fontSize: 12.5, marginBottom: 14 }}>
             {error}
           </div>
         )}
@@ -158,8 +157,7 @@ function LoginForm() {
           disabled={loading}
           style={{
             width: "100%",
-            background:
-              "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 55%, #06b6d4 100%)",
+            background: "#122142",
             color: "#fff",
             border: "none",
             padding: "12px 20px",

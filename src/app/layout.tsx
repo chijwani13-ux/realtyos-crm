@@ -1,39 +1,39 @@
 import type { Metadata } from "next";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { IBM_Plex_Sans, Libre_Caslon_Text } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
-const plusJakarta = Plus_Jakarta_Sans({
-  variable: "--font-plus-jakarta",
+const librecaslon = Libre_Caslon_Text({
+  variable: "--font-display",
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "RealtyOS",
+  title: "Chijwani RealTech OS",
   description: "Real estate CRM for leads, buyers, builders, and projects",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "RealtyOS",
+    title: "Chijwani RealTech OS",
   },
 };
 
 export const viewport = {
-  themeColor: "#4f46e5",
+  themeColor: "#122142",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${plusJakarta.variable} h-full antialiased`}
+      className={`${plexSans.variable} ${librecaslon.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
