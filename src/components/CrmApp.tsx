@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { signOut } from "next-auth/react";
 import { todayStrIST } from "@/lib/geo";
 import { LEAD_STAGES, stageRequiresBudget } from "@/lib/leadStages";
@@ -606,10 +607,7 @@ export default function CrmApp({
         <div className="sidebar">
           <div className="brand">
             <div className="brand-mark">
-              <svg width="18" height="18" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M15 33V21.5L26 14L37 21.5V33" stroke="#D4A62D" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M20.5 33V25.5H31.5V33" stroke="#D4A62D" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={22} height={28} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
             </div>
             <div>
               <div className="brand-title">Chijwani RealTech</div>

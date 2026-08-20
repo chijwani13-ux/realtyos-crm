@@ -49,7 +49,7 @@ body {
 
 .sidebar{ width:210px; flex-shrink:0; background:rgba(255,255,255,0.7); backdrop-filter:blur(14px); border-right:1px solid var(--border); padding:20px 14px; display:flex; flex-direction:column; gap:4px; }
 .brand{ display:flex; align-items:center; gap:10px; padding:6px 8px 20px; }
-.brand-mark{ width:36px; height:36px; border-radius:11px; background:var(--grad); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; }
+.brand-mark{ width:32px; height:41px; display:flex; align-items:center; justify-content:center; }
 .brand-title{ font-size:13px; font-weight:700; font-family:var(--font-display),serif; line-height:1.2; }
 .brand-sub{ font-size:10px; color:var(--ink-faint); font-weight:600; letter-spacing:0.08em; }
 .nav-item{ padding:10px 12px; border-radius:10px; font-size:13.5px; font-weight:600; color:var(--ink-soft); cursor:pointer; display:flex; align-items:center; gap:9px; }

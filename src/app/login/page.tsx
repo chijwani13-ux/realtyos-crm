@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import Image from "next/image";
 
 function LoginForm() {
   const router = useRouter();
@@ -72,20 +73,15 @@ function LoginForm() {
       >
         <div
           style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
-            background: "#122142",
+            width: 52,
+            height: 52,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             marginBottom: 16,
           }}
         >
-          <svg width="22" height="22" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M15 33V21.5L26 14L37 21.5V33" stroke="#D4A62D" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M20.5 33V25.5H31.5V33" stroke="#D4A62D" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={52} height={67} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", fontFamily: "'Libre Caslon Text', Georgia, serif" }}>
           Chijwani RealTech OS
