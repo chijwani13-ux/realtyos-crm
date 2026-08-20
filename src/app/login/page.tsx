@@ -65,7 +65,7 @@ function LoginForm() {
         style={{
           background: "#fff",
           borderRadius: 22,
-          padding: 32,
+          overflow: "hidden",
           width: "100%",
           maxWidth: 380,
           boxShadow: "0 24px 60px rgba(15,31,61,0.16)",
@@ -73,20 +73,32 @@ function LoginForm() {
       >
         <div
           style={{
-            width: 52,
-            height: 52,
+            background: "#122142",
+            padding: "40px 32px 32px",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 16,
           }}
         >
-          <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={52} height={67} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
+          <div
+            style={{
+              width: 96,
+              height: 96,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 18,
+            }}
+          >
+            <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={96} height={124} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
+          </div>
+          <div style={{ fontSize: 26, lineHeight: 1, fontFamily: "'Libre Caslon Text', Georgia, serif", letterSpacing: "0.01em", textAlign: "center" }}>
+            <span style={{ color: "#fff" }}>Chijwani </span>
+            <span style={{ color: "#D4A62D" }}>RealTech</span>
+          </div>
         </div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", fontFamily: "'Libre Caslon Text', Georgia, serif" }}>
-          Chijwani RealTech OS
-        </h1>
-        <p style={{ fontSize: 13, color: "#5A5347", margin: "0 0 24px" }}>
+        <div style={{ padding: "28px 32px 32px" }}>
+        <p style={{ fontSize: 13, color: "#5A5347", margin: "0 0 24px", textAlign: "center" }}>
           Sign in to your CRM
         </p>
         <div style={{ marginBottom: 14 }}>
@@ -166,6 +178,7 @@ function LoginForm() {
         >
           {loading ? "Signing in…" : "Sign In"}
         </button>
+        </div>
       </form>
     </div>
   );

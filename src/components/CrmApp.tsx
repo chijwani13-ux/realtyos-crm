@@ -610,7 +610,10 @@ export default function CrmApp({
               <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={22} height={28} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
             </div>
             <div>
-              <div className="brand-title">Chijwani RealTech</div>
+              <div className="brand-title">
+                <span style={{ color: "var(--ink)" }}>Chijwani </span>
+                <span style={{ color: "var(--gold-text)" }}>RealTech</span>
+              </div>
               <div className="brand-sub">OS</div>
             </div>
           </div>
