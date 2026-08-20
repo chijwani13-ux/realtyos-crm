@@ -72,15 +72,15 @@ function LoginForm() {
       >
         <div
           style={{
-            width: 96,
-            height: 96,
+            width: 140,
+            height: 140,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             marginBottom: 18,
           }}
         >
-          <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={96} height={124} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
+          <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={140} height={180} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
         </div>
         <div style={{ fontSize: 28, lineHeight: 1, fontFamily: "'Libre Caslon Text', Georgia, serif", letterSpacing: "0.01em", textAlign: "center" }}>
           <span style={{ color: "#fff" }}>Chijwani </span>
