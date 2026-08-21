@@ -607,7 +607,7 @@ export default function CrmApp({
         <div className="sidebar">
           <div className="brand">
             <div className="brand-mark">
-              <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={22} height={28} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
+              <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={31} height={39} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
             </div>
             <div>
               <div className="brand-title">
@@ -2503,7 +2503,7 @@ function TeamTab({
                 return (
                   <div className="entity-field" key={l.id}>
                     <span className="l">
-                      {l.label} <span style={{ opacity: 0.6 }}>· {owner?.name || owner?.email || "Unknown"}</span>
+                      {l.label} <span style={{ opacity: 0.85 }}>· {owner?.name || owner?.email || "Unknown"}</span>
                     </span>
                     <span className="v" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       {l.radiusMeters}m radius
@@ -3113,16 +3113,16 @@ function SettingsTab({
                 ) : (
                   <div className="entity-field" key={u.id}>
                     <span className="l">
-                      {u.name || u.email} <span style={{ opacity: 0.6 }}>· {u.role}</span>
-                      {u.position && <span style={{ opacity: 0.6 }}> · {u.position}</span>}
+                      {u.name || u.email} <span style={{ opacity: 0.85 }}>· {u.role}</span>
+                      {u.position && <span style={{ opacity: 0.85 }}> · {u.position}</span>}
                       {u.accessStart && u.accessEnd && (
-                        <span style={{ opacity: 0.6 }}>
+                        <span style={{ opacity: 0.85 }}>
                           {" "}
                           · {u.accessStart}–{u.accessEnd}
                         </span>
                       )}
                       {u.role === "Employee" && !u.attendanceEnabled && (
-                        <span style={{ opacity: 0.6 }}> · Attendance not required</span>
+                        <span style={{ opacity: 0.85 }}> · Attendance not required</span>
                       )}
                       {u.role === "Employee" && !u.availableForLeads && (
                         <span style={{ opacity: 0.6, color: "#ef4444" }}> · Unavailable for leads</span>

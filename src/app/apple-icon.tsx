@@ -20,7 +20,7 @@ export default function AppleIcon() {
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`data:image/png;base64,${logo}`} width={124} height={124} style={{ objectFit: "contain" }} />
+        <img src={`data:image/png;base64,${logo}`} width={174} height={174} style={{ objectFit: "contain" }} />
       </div>
     ),
     { ...size }

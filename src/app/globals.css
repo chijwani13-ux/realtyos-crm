@@ -30,10 +30,10 @@ body {
   --bg1: #F8F7F5; --bg2: #F1E9D8;
   --surface: rgba(255,255,255,0.85); --surface-solid: #ffffff;
   --border: #DEDACF;
-  --ink: #122142; --ink-soft: #5A5347; --ink-faint: #948C79;
+  --ink: #122142; --ink-soft: #5A5347; --ink-faint: #6B6354;
   --grad: #122142;
   --grad-soft: rgba(18,33,66,0.08);
-  --gold:#D4A62D; --gold-soft:rgba(212,166,45,0.14); --gold-text:#BD8B24;
+  --gold:#D4A62D; --gold-soft:rgba(212,166,45,0.14); --gold-text:#8A6716;
   --danger:#AC3D3D; --danger-soft:rgba(172,61,61,0.1);
   --green:#2F7D5E; --green-soft:rgba(47,125,94,0.1);
   --radius:20px; --radius-sm:10px;
@@ -49,7 +49,7 @@ body {
 
 .sidebar{ width:210px; flex-shrink:0; background:rgba(255,255,255,0.7); backdrop-filter:blur(14px); border-right:1px solid var(--border); padding:20px 14px; display:flex; flex-direction:column; gap:4px; }
 .brand{ display:flex; align-items:center; gap:10px; padding:6px 8px 20px; }
-.brand-mark{ width:32px; height:41px; display:flex; align-items:center; justify-content:center; }
+.brand-mark{ width:45px; height:57px; display:flex; align-items:center; justify-content:center; }
 .brand-title{ font-size:13px; font-weight:700; font-family:var(--font-display),serif; line-height:1.2; }
 .brand-sub{ font-size:10px; color:var(--ink-faint); font-weight:600; letter-spacing:0.08em; }
 .nav-item{ padding:10px 12px; border-radius:10px; font-size:13.5px; font-weight:600; color:var(--ink-soft); cursor:pointer; display:flex; align-items:center; gap:9px; }

@@ -21,7 +21,7 @@ export default function Icon() {
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`data:image/png;base64,${logo}`} width={132} height={132} style={{ objectFit: "contain" }} />
+        <img src={`data:image/png;base64,${logo}`} width={184} height={184} style={{ objectFit: "contain" }} />
       </div>
     ),
     { ...size }

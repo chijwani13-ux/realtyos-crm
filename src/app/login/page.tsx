@@ -72,15 +72,15 @@ function LoginForm() {
       >
         <div
           style={{
-            width: 140,
-            height: 140,
+            width: 196,
+            height: 196,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             marginBottom: 18,
           }}
         >
-          <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={140} height={180} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
+          <Image src="/brand/chijwani-mark-500.png" alt="Chijwani RealTech" width={196} height={252} style={{ width: "auto", height: "100%", objectFit: "contain" }} unoptimized priority />
         </div>
         <div style={{ fontSize: 28, lineHeight: 1, fontFamily: "'Libre Caslon Text', Georgia, serif", letterSpacing: "0.01em", textAlign: "center" }}>
           <span style={{ color: "#fff" }}>Chijwani </span>
@@ -178,7 +178,7 @@ function LoginForm() {
         >
           {loading ? "Signing in…" : "Sign In"}
         </button>
-        <p style={{ fontSize: 12.5, color: "#948C79", margin: "16px 0 0", textAlign: "center" }}>
+        <p style={{ fontSize: 12.5, color: "#6B6354", margin: "16px 0 0", textAlign: "center" }}>
           Forgot your password? Contact your CRM admin to reset it.
         </p>
       </form>
