@@ -2780,6 +2780,7 @@ function SettingsTab({
   const [editAccessEnd, setEditAccessEnd] = useState("");
   const [editAttendanceEnabled, setEditAttendanceEnabled] = useState(true);
   const [editAvailableForLeads, setEditAvailableForLeads] = useState(true);
+  const [editNewPassword, setEditNewPassword] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [assignmentMethod, setAssignmentMethod] = useState<"manual" | "round_robin" | "least_busy">("manual");
@@ -2874,9 +2875,14 @@ function SettingsTab({
     setEditAccessEnd(u.accessEnd || "");
     setEditAttendanceEnabled(u.attendanceEnabled);
     setEditAvailableForLeads(u.availableForLeads);
+    setEditNewPassword("");
   }
 
   async function handleSaveEdit(u: TeamUser) {
+    if (editNewPassword && editNewPassword.length < 8) {
+      showToast("New password must be at least 8 characters");
+      return;
+    }
     setSavingEdit(true);
     try {
       const res = await fetch(`/api/settings/users/${u.id}`, {
@@ -2890,14 +2896,16 @@ function SettingsTab({
           accessEnd: editAccessEnd,
           attendanceEnabled: editAttendanceEnabled,
           availableForLeads: editAvailableForLeads,
+          ...(editNewPassword ? { password: editNewPassword } : {}),
         }),
       });
       const json = await res.json();
       if (!res.ok) {
         showToast(json.error || "Could not update user");
       } else {
-        showToast("Updated");
+        showToast(editNewPassword ? "Updated — password reset" : "Updated");
         setEditingId(null);
+        setEditNewPassword("");
         loadTeamUsers();
       }
     } catch {
@@ -2963,7 +2971,8 @@ function SettingsTab({
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 20, maxWidth: 440 }}>
+      <div className="settings-grid">
+      <div className="card">
         <h3>Profile</h3>
         {profile ? (
           <>
@@ -2985,7 +2994,7 @@ function SettingsTab({
         )}
       </div>
 
-      <div className="card" style={{ maxWidth: 440 }}>
+      <div className="card">
         <h3>Change Password</h3>
         <div className="field">
           <label>Current Password</label>
@@ -3013,7 +3022,7 @@ function SettingsTab({
       </div>
 
       {isOwner && (
-        <div className="card" style={{ maxWidth: 520, marginTop: 20 }}>
+        <div className="card" style={{ gridColumn: "1 / -1" }}>
           <h3>Team</h3>
           {teamUsers.length === 0 ? (
             <div className="empty-sm">Loading…</div>
@@ -3077,11 +3086,26 @@ function SettingsTab({
                         </div>
                       </>
                     )}
+                    <div className="field">
+                      <label>Reset Password (optional)</label>
+                      <input
+                        type="password"
+                        value={editNewPassword}
+                        onChange={(e) => setEditNewPassword(e.target.value)}
+                        placeholder="Leave blank to keep current password"
+                      />
+                    </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button className="btn btn-sm" onClick={() => handleSaveEdit(u)} disabled={savingEdit}>
                         {savingEdit ? "Saving…" : "Save"}
                       </button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(null)}>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditNewPassword("");
+                        }}
+                      >
                         Cancel
                       </button>
                     </div>
@@ -3200,7 +3224,7 @@ function SettingsTab({
       )}
 
       {isOwner && (
-        <div className="card" style={{ maxWidth: 440, marginTop: 20 }}>
+        <div className="card">
           <h3>Lead Assignment</h3>
           <div className="field">
             <label>New leads are assigned</label>
@@ -3221,6 +3245,7 @@ function SettingsTab({
           </div>
         </div>
       )}
+      </div>
     </>
   );
 }

@@ -178,6 +178,9 @@ function LoginForm() {
         >
           {loading ? "Signing in…" : "Sign In"}
         </button>
+        <p style={{ fontSize: 12.5, color: "#948C79", margin: "16px 0 0", textAlign: "center" }}>
+          Forgot your password? Contact your CRM admin to reset it.
+        </p>
       </form>
     </div>
   );

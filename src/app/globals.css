@@ -71,6 +71,7 @@ body {
 
 .grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
 .card{ border:1px solid var(--border); background:var(--surface-solid); border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow-sm); }
+.settings-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:20px; align-items:start; }
 .card h3{ font-size:14.5px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; }
 .card .count{ background:var(--grad-soft); color:var(--ink); font-size:11px; font-weight:800; padding:2px 9px; border-radius:20px; }
 .item-row{ display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }

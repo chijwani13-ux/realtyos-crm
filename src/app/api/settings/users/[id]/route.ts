@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/permissions";
 
@@ -12,10 +13,14 @@ export async function PUT(
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
 
   const { id } = await params;
-  const { name, role, position, accessStart, accessEnd, attendanceEnabled, availableForLeads } = await req.json();
+  const { name, role, position, accessStart, accessEnd, attendanceEnabled, availableForLeads, password } =
+    await req.json();
 
   if ((accessStart && !TIME_RE.test(accessStart)) || (accessEnd && !TIME_RE.test(accessEnd))) {
     return NextResponse.json({ error: "Access hours must be valid times" }, { status: 400 });
+  }
+  if (password && password.length < 8) {
+    return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
   }
 
   const target = await prisma.user.findUnique({ where: { id } });
@@ -39,6 +44,7 @@ export async function PUT(
       accessEnd: finalRole === "Employee" ? accessEnd || null : null,
       attendanceEnabled: finalRole === "Employee" ? attendanceEnabled !== false : true,
       availableForLeads: finalRole === "Employee" ? availableForLeads !== false : true,
+      ...(password ? { passwordHash: await bcrypt.hash(password, 10) } : {}),
     },
     select: {
       id: true,
